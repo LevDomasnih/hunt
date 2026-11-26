@@ -97,6 +97,59 @@ def test_status(configured):
     assert "authorization" not in configured.last("GET", "/health").headers
 
 
+# ---------------------------------------------------------------- which client ("Подключить агента")
+
+def test_client_header_defaults_to_claude_code(configured, monkeypatch):
+    monkeypatch.delenv("HUNT_CLIENT", raising=False)
+    monkeypatch.setattr(hc.sys, "argv", ["hunt_core.py"])
+    configured.on("GET", "/api/searches", {"searches": []})
+    run(hc.search_list())
+    assert configured.last("GET", "/api/searches").headers["x-hunt-client"] == "claude-code"
+
+
+def test_client_header_from_codex_arg_and_env(configured, monkeypatch):
+    configured.on("GET", "/api/searches", {"searches": []})
+    configured.on("GET", "/health", {"ok": True})
+    configured.on("GET", "/api/me", {"user": {"id": "u_t"}})
+    monkeypatch.setattr(hc.sys, "argv", ["hunt_core.py", "--client", "codex"])
+    run(hc.search_list())
+    assert configured.last("GET", "/api/searches").headers["x-hunt-client"] == "codex"
+    run(hc.hunt_status())  # unauthenticated calls say it too, and never carry the token
+    assert configured.last("GET", "/health").headers["x-hunt-client"] == "codex" and "authorization" not in configured.last("GET", "/health").headers
+    monkeypatch.setattr(hc.sys, "argv", ["hunt_core.py"])
+    monkeypatch.setenv("HUNT_CLIENT", "Codex")
+    run(hc.search_list())
+    assert configured.last("GET", "/api/searches").headers["x-hunt-client"] == "codex"
+
+
+def test_client_name_parsing(monkeypatch):
+    monkeypatch.delenv("HUNT_CLIENT", raising=False)
+    assert hc.client_name([]) == "claude-code"
+    assert hc.client_name(["--client=codex"]) == "codex"
+    assert hc.client_name(["--client", "something-else"]) == "claude-code"
+    assert hc.client_name(["--client"]) == "claude-code"
+    monkeypatch.setenv("HUNT_CLIENT", "codex")
+    assert hc.client_name([]) == "codex" and hc.client_name(["--client", "claude-code"]) == "claude-code"
+
+
+def test_codex_manifest_passes_the_client():
+    import json as _json
+    from pathlib import Path as _P
+    m = _json.loads((_P(hc.__file__).resolve().parent.parent / ".codex-plugin" / "plugin.json").read_text())
+    args = m["mcpServers"]["hunt"]["args"]
+    assert args[args.index("--client") + 1] == "codex" and "HUNT_CLIENT" in m["mcpServers"]["hunt"]["env_vars"]
+
+
+def test_plugin_root_ignores_unexpanded_or_missing_env(monkeypatch, tmp_path):
+    here = hc.Path(hc.__file__).resolve().parent.parent
+    monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", "${CLAUDE_PLUGIN_ROOT}")
+    assert hc.plugin_root() == here
+    monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(tmp_path / "missing"))
+    assert hc.plugin_root() == here
+    monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(tmp_path))
+    assert hc.plugin_root() == tmp_path
+
+
 # ---------------------------------------------------------------- errors
 
 def test_api_error_is_readable(configured):

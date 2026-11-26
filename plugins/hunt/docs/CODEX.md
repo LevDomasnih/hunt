@@ -42,6 +42,6 @@ Logins, the CRM token (OS keychain, service `hunt`), Telegram sessions and brows
 
 ## Differences
 
-- MCP servers start with `cwd` = the plugin folder and relative paths: Codex does not expand `${CLAUDE_PLUGIN_ROOT}` in MCP commands. The servers get only the env Codex passes plus `HUNT_*` overrides listed in the manifest (`env_vars`).
+- MCP servers start with `cwd` = the plugin folder and relative paths: Codex does not expand `${CLAUDE_PLUGIN_ROOT}` in MCP commands. The `hunt` server gets `--client codex` from the manifest (or `HUNT_CLIENT=codex`) and says so to the server, so the Mini App shows «Codex» on «Подключить агента»; a literal `${CLAUDE_PLUGIN_ROOT}` in the environment is ignored. The servers get only the env Codex passes plus `HUNT_*` overrides listed in the manifest (`env_vars`).
 - Regular runs: Claude Code uses a scheduled task or `/loop`; in Codex use an automation in the Codex app, or cron/launchd running `codex exec` with the tick request (the computer must be on).
 - No question buttons in the Codex CLI: onboarding asks as a short numbered list.

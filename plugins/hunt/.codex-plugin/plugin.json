@@ -11,9 +11,9 @@
   "mcpServers": {
     "hunt": {
       "command": "uv",
-      "args": ["run", "--quiet", "--script", "./mcp/hunt_core.py"],
+      "args": ["run", "--quiet", "--script", "./mcp/hunt_core.py", "--client", "codex"],
       "cwd": ".",
-      "env_vars": ["HUNT_CONFIG_DIR", "HUNT_API_URL", "HUNT_TOKEN", "HUNT_REGIONS", "HUNT_PACKS"]
+      "env_vars": ["HUNT_CONFIG_DIR", "HUNT_API_URL", "HUNT_TOKEN", "HUNT_REGIONS", "HUNT_PACKS", "HUNT_CLIENT"]
     },
     "hunt-telegram": {
       "command": "uv",

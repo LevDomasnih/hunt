@@ -370,7 +370,7 @@ export function stageSummary(s: any, extra: any, dealTerms: any | null, counts: 
 
 // Writes that stay allowed on a closed project: reading files, my settings, the owner's reopen.
 const CLOSED_OK = new Set(['/app/api/doc-link', '/app/api/doc-send', '/app/api/recap-share', '/app/api/lang', '/app/api/revoke-links', '/app/api/prefs',
-  '/app/api/stage', '/app/api/seen-reveal', '/app/api/reroll-animal']);
+  '/app/api/stage', '/app/api/seen-reveal', '/app/api/reroll-animal', '/app/api/agent-token']);
 const ID_TABLE: Record<string, string> = {
   '/app/api/expense-delete': 'expenses', '/app/api/dir-delete': 'directory', '/app/api/place': 'places', '/app/api/bike-pay': 'bikes',
   '/app/api/bike-check': 'bikes', '/app/api/item-delete': 'items',

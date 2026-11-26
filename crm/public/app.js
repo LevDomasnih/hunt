@@ -3,6 +3,7 @@ import { html, render, useState, useEffect, useRef, useMemo } from 'https://unpk
 import { Desk, Door, Sessions, useWide, deskTone } from './desk.js'; // the big screen (≥ 1024 px) and the site's door
 import { demoOn, demoApi, demoRegions } from './demo.js';
 import { AccessScreen, DraftScreen, settingsRow, canAccess } from './access.js'; // access to conversations (design/mockup-v6)
+import { AgentScreen, AgentTokenSheet, agentSettingsRow, agentOn, agentSub } from './agent.js'; // "Подключить агента" (design/mockup-v5/agent-*)
 import { NewProject, npTone } from './newproject.js'; // a new project from the app (design/mockup-v7)
 import { fxMount } from './fx.js'; // wave 7: one category effect per event photo
 
@@ -1491,6 +1492,7 @@ function toneFor(screen, arg) {
   if (screen === 'money') return 'money';
   if (screen === 'more') return 'more';
   if (screen === 'access') return ['sees', 'off', 'receipt'].includes(arg) ? 'grey' : arg === 'limit' ? 'money' : 'access';
+  if (screen === 'agent') return 'access'; // "Подключить агента": sky like connecting the chats
   if (screen === 'chats' && arg && d.me?.role === 'owner' && (d.drafts ?? []).some((x) => x.contact_id === arg)) return 'access';
   if (screen === 'chats' && homeMode()) return chArchRoute(arg) ? 'grey' : 'access'; // wave 8.3: the home's chats sky, the archive calm grey
   if (ORD_SCREENS.has(screen)) return ordTone(screen, arg); // wave 10: lilac, the fish shop sky
@@ -7087,6 +7089,8 @@ function MoreScreen() {
       d.renewal && row('next', 'calendar-clock', t('hm_m_next'), d.renewal.status === 'open' ? nxWeeks(d.renewal) : t('hm_m_next_sub'), 'next'),
     ])}
     ${card(t('hm_more_search'), [
+      html`<button key="agent" class="w2-row w3-irow mo-agent" onClick=${() => go(sp('agent'))}><span class=${'sq big ink' + (agentOn() ? ' on' : '')}><${Icon} n="plug" /></span>
+        <div class="grow"><b>${LANG === 'ru' ? 'Подключить агента' : 'Connect the agent'}</b><span>${agentSub()}</span></div><${Icon} n="chev" cls="sm muted" /></button>`,
       canAccess() && row('access', 'shield-check', LANG === 'ru' ? 'Доступ к чатам' : 'Access to chats', LANG === 'ru' ? 'Что видит Hunt, отозвать всё' : 'What Hunt sees, take it back', 'access'),
       row('archive', 'layers', t('hm_m_archive'), t('hm_m_archive_sub', { n: nArch }), 'archive'),
       row('path', 'route', t('hm_m_path'), t('hm_m_path_sub', { i: Math.min(st.idx, st.n), n: st.n }), 'path'),
@@ -9569,6 +9573,7 @@ function Sheet() {
       ${d.search.invite_link && html`<button class="btn accent block" style="margin-bottom:10px" onClick=${() => inviteFriends(d.search)}><${Icon} n="userplus" />${t('invite')}</button>`}
       ${d.deal && canVoteRole(d.me.role) && html`<button class="btn surface block" style="margin-bottom:10px" onClick=${() => { closeSheet(); go(sp('guests')); }}><${Icon} n="users" />${t('gi_title')}</button>`}`}
       ${d.search && !isGuest() && !homeMode() && html`<button class="btn surface block" style="margin-bottom:10px" onClick=${() => { closeSheet(); go(sp('afisha')); }}><${Icon} n="ticket" />${t('af_title')}</button>`}
+      ${agentSettingsRow()}
       ${d.search && settingsRow()}
       ${d.search && html`<button class="btn surface block" style="margin-bottom:10px" onClick=${() => { closeSheet(); go(sp('useful')); }}><${Icon} n="book-open" />${t('uf_title')}</button>`}
       <button class="btn surface block" style="margin-bottom:10px" onClick=${() => { closeSheet(); go('/searches'); }}>${t('all_searches')}</button>
@@ -9591,6 +9596,7 @@ function Sheet() {
       <button class="btn ghost block" onClick=${closeSheet}>${t('close')}</button>`;
   }
   if (sh.kind === 'add_expense') body = html`<${AddExpense} />`;
+  if (sh.kind === 'agent_token') body = html`<${AgentTokenSheet} />`;
   if (sh.kind === 'home_name') body = html`<${HomeNameSheet} />`;
   if (sh.kind === 'expense') body = html`<${ExpenseSheet} id=${sh.arg} />`;
   if (sh.kind === 'shares') body = html`<${SharesSheet} />`;
@@ -9660,6 +9666,7 @@ DETAIL.add('afisha');
 DETAIL.add('party'); DETAIL.add('party-edit'); // wave 9
 for (const k of ORD_SCREENS) DETAIL.add(k); // wave 10
 DETAIL.add('access');
+DETAIL.add('agent');
 function App() {
   useStore();
   const wide = useWide();
@@ -9773,6 +9780,7 @@ function App() {
       guests: () => html`<${GuestsScreen} />`,
       path: () => html`<${PathScreen} />`, // wave 6 · A
       access: () => html`<${AccessScreen} key=${a ?? ''} arg=${a} />`,
+      agent: () => html`<${AgentScreen} />`,
       more: () => html`<${MoreScreen} />`,
       archive: () => html`<${Archive} />`,
     }[route.screen]?.() ?? html`<${Today} />`;
@@ -9799,6 +9807,7 @@ render(html`<${App} />`, document.getElementById('root'));
 
 // for desk.js (a circular import: used only while rendering)
 export {
+  genRu, isGuest, Nav,
   BackRound, copyText, shortLabel, channelLink, closeSheet, authHeaders,
   S, D, LANG, t, api, emit, toast, hap, go, sp, back, refresh, load, openSheet, openLink, pref, inTG, isDark, cssVar, Icon, Av, BigWord, Typed, Sticker, FloatPhoto, WaterCard, CountUp, Good, Receipt, TkPhoto, Img, money, scaled, bigMoney, dfmt, fmtTime, fmtDM, fmtDayMonth, wdShort, dayKey, cap, firstName, shortTitle, pl, skel, msgCard, listingById, memberById, votesFor, myVote, vote, photosOf, photoUrl, districtShort, districtName, priceText, minutesFor, km, interestOf, canVoteRole, isNewForMe, homeMode, homeListing, homePhase, homeStage, hmStay, hmDays, hmToday, hmName, useEventPlan, useSurf, surfBest, sfH, hm, briefMentionsSurf, nightMode, sortedThreads, thArchived, chArchRoute, homeThreads, archThreads, archNew, homeRow, waitingUs, channelsOf, contactName, channelName, useAfisha, AF, afTitle, afHM, afPlace, afPrice, afLang, afWhy, afTravel, afDay, afDayLong, afFeedback, afBook, afIcon, afArea, useOrders, ordSup, ordShelf, ordBasket, ordSetQty, ordName, ordShort, ordPrice, ordBadge, ordRot, ordTab, ordCan, ordAgain, ordLast, ordMoney, ordFlushAll, viewingsByDay, regionPack, subRegion, loadML, mapStyle, inviteFriends, docTitle, docSub, dealPaid, vStatus,
 };

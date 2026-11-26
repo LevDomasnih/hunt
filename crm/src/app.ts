@@ -5,7 +5,7 @@ import { seal, isSealed, openRows, openDraft, MSG, THREAD } from './vault';
 import { Env, HttpError, json, body, now, rid, hmac, hex, inflate, parseJson, LISTING_JSON, event, safeEqual, guardBody, sensitive } from './util';
 import { putImage, kvPhoto, mediaHeaders, verifyPhotoToken, photoToken, withSrc, rateLimit, AUDIO_TYPES, kvBudget } from './media';
 import { DECISIONS } from './i18n';
-import { publishListing } from './bot';
+import { publishListing, issueToken } from './bot';
 import { fileResponse, tg, tgFileStream } from './tg';
 import { routeLink } from './cards';
 import { animalInfo, countryOf, regionTz, ensureAnimals, rerollAnimal, publicBrief, isPrivateBriefKey } from './members';
@@ -130,7 +130,7 @@ const VOTERS: Role[] = ['owner', 'member'];
 /** Searches the user may open in the Mini App (a scoped link narrows them to its one search). */
 async function searchRowsOf(env: Env, user: AppUser) {
   const rows = (await env.DB.prepare(
-    `SELECT s.id, s.title, s.region, s.status, s.brief, s.owner_id, s.created_at, s.money_mode, s.rooms, s.dir_groups, s.agent_seen_at, s.stage, s.stage_manual, s.stage_changed_at, s.home_listing_id, s.closed_at, o.display_name owner_name, m.role
+    `SELECT s.id, s.title, s.region, s.status, s.brief, s.owner_id, s.created_at, s.money_mode, s.rooms, s.dir_groups, s.agent_seen_at, s.agent_client, s.stage, s.stage_manual, s.stage_changed_at, s.home_listing_id, s.closed_at, o.display_name owner_name, m.role
      FROM searches s JOIN members m ON m.search_id=s.id AND m.user_id=?1 JOIN users o ON o.id=s.owner_id
      ORDER BY s.status='closed', s.updated_at DESC`,
   ).bind(user.id).all<any>()).results ?? [];
@@ -357,6 +357,7 @@ async function state(req: Request, env: Env, user: AppUser): Promise<Response> {
     feed,
     counts: { new: summary.counts.new, drafts: summary.counts.drafts, replies_24h: full ? Number(rep.results?.[0]?.n ?? 0) : 0 },
     agent_last_seen: rawSearch?.agent_seen_at ?? null,
+    agent_client: rawSearch?.agent_client ?? null, // claude-code | codex (X-Hunt-Client of the owner's plugin)
     photo_token,
   });
 }
@@ -1220,6 +1221,20 @@ export async function handleApp(req: Request, env: Env, path: string): Promise<R
   if (path === '/app/api/revoke-links' && req.method === 'POST') {
     await DB.prepare('UPDATE users SET link_gen=link_gen+1 WHERE id=?').bind(user.id).run();
     return json({ ok: true });
+  }
+  // "Подключить агента": the owner issues a new agent token for their plugin. Only the person's earlier agent tokens die (the
+  // bot's /revoke also kills web links and sessions). The token is in this answer only: the server keeps its sha256.
+  if (path === '/app/api/agent-token' && req.method === 'POST') {
+    if (user.scope) throw new HttpError(403, 'link_scope');
+    const b = await body(req);
+    await member(env, b.search_id, user.id, ['owner']);
+    if (!(await DB.prepare('SELECT 1 FROM hunters WHERE user_id=?').bind(user.id).first())) throw new HttpError(403, 'not_hunter', 'Only a hunter has an agent');
+    await rateLimit(env, 'agent_token', user.id, 6);
+    const r = await issueToken(env, user.id, 'app', true);
+    await event(env, b.search_id, 'agent_token', null, user.id, { name: user.display_name, revoked: r.revoked });
+    const res = json({ ok: true, token: r.token, api_url: env.PUBLIC_URL, revoked: r.revoked });
+    res.headers.set('cache-control', 'no-store');
+    return res;
   }
   // The owner removes a member (their votes stop counting, links minted for them die with the role).
   if (path === '/app/api/member-remove' && req.method === 'POST') {

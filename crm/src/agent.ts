@@ -107,16 +107,29 @@ export function cleanShortName(v: unknown): string | null {
 /**
  * Wave 8.1: any authenticated agent call (reads too) counts as the agent being around: agent_seen_at of the caller's own
  * searches moves forward at most once per 10 minutes (an in-isolate throttle plus the same condition in SQL).
+ * "Подключить агента": the plugin says which client it runs in (X-Hunt-Client: claude-code | codex); a new client is
+ * stored at once, an unknown or missing header (an older plugin) keeps what was there.
  */
 const SEEN_MS = 10 * 60e3;
 const seenAt = new Map<string, number>();
-export async function seenAgent(env: Env, uid: string) {
-  const t = Date.now();
-  if ((seenAt.get(uid) ?? 0) > t - SEEN_MS) return;
-  seenAt.set(uid, t);
+const CLIENTS = new Set(['claude-code', 'codex']);
+export const agentClient = (req: Request): string | null => {
+  const v = (req.headers.get('x-hunt-client') ?? '').trim().toLowerCase();
+  return CLIENTS.has(v) ? v : null;
+};
+export async function seenAgent(env: Env, uid: string, client: string | null = null) {
+  const t = Date.now(), key = `${uid}|${client ?? ''}`;
+  if ((seenAt.get(key) ?? 0) > t - SEEN_MS) return;
+  seenAt.set(key, t);
   if (seenAt.size > 500) seenAt.clear();
-  await env.DB.prepare(`UPDATE searches SET agent_seen_at=?1 WHERE id IN (SELECT search_id FROM members WHERE user_id=?2 AND role='owner')
-      AND (agent_seen_at IS NULL OR agent_seen_at < ?3)`).bind(new Date(t).toISOString(), uid, new Date(t - SEEN_MS).toISOString()).run();
+  const at = new Date(t).toISOString(), since = new Date(t - SEEN_MS).toISOString();
+  const mine = `id IN (SELECT search_id FROM members WHERE user_id=?2 AND role='owner')`;
+  if (client) {
+    await env.DB.prepare(`UPDATE searches SET agent_seen_at=?1, agent_client=?4 WHERE ${mine}
+      AND (agent_seen_at IS NULL OR agent_seen_at < ?3 OR agent_client IS NOT ?4)`).bind(at, uid, since, client).run();
+  } else {
+    await env.DB.prepare(`UPDATE searches SET agent_seen_at=?1 WHERE ${mine} AND (agent_seen_at IS NULL OR agent_seen_at < ?3)`).bind(at, uid, since).run();
+  }
 }
 /** The agent was active in this search (the Mini App's "agent last seen"). */
 export async function touchAgent(env: Env, sid: string | null | undefined) {
@@ -139,7 +152,7 @@ const enc = (v: unknown) => (v != null && typeof v === 'object' ? JSON.stringify
 
 export async function handleAgent(req: Request, env: Env, path: string): Promise<Response> {
   const ctx = await authAgent(req, env);
-  await seenAgent(env, ctx.user.id);
+  await seenAgent(env, ctx.user.id, agentClient(req));
   const m = req.method;
   const p = path.split('/').filter(Boolean); // ['api', ...]
   const DB = env.DB;

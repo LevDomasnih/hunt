@@ -45,7 +45,8 @@ You need a Cloudflare account (free) and Node 20+.
 - `/invite` in the bot (admins): a one-time link that makes someone a **hunter** (they get their own agent token and run their own searches with your bot).
 - Each search has its own links (returned by `POST /api/searches`): `group_link` adds the bot to a new Telegram group for the search; `invite_link` lets a friend join the search to vote in the Mini App.
 - Members vote with the buttons under the cards. Writing in the group or pressing a vote button does **not** make anyone a member: people join through `invite_link` (the bot tells a non-member voter to ask for it). The owner can remove a member in the Mini App (`/app/api/member-remove`); the member invite is then rotated.
-- `/revoke` in the bot revokes all your agent tokens and every web link (then `/token` for a new agent token). Web links from `POST /link` last at most 30 days; a link for a friend needs `search_id` and opens only that search.
+- `/revoke` in the bot revokes all your agent tokens and every web link (then `/token` for a new agent token).
+- In the Mini App, «Ещё» → «Подключить агента» (while searching: the menu → «Подключить агента») shows the plugin steps for Claude Code and Codex, whether your agent is connected and in which client, and «Выпустить новый»: a new agent token that revokes only your earlier agent tokens (web links stay). The token is shown once, right after it is issued; the server keeps only its hash. Web links from `POST /link` last at most 30 days; a link for a friend needs `search_id` and opens only that search.
 
 By default the instance is private: only people with an invite can use it (`OPEN_SIGNUP` stays unset).
 

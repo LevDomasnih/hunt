@@ -35,12 +35,21 @@ async function upsertTgUser(env: Env, from: any) {
   return u;
 }
 
-async function issueToken(env: Env, userId: string, label: string): Promise<string> {
+/**
+ * A new agent token; only its sha256 is stored. `replace` (the Mini App's "Выпустить новый") revokes this person's other
+ * agent tokens in the same batch; web links and site sessions stay (unlike /revoke). Returns the token and how many died.
+ */
+export async function issueToken(env: Env, userId: string, label: string, replace?: false): Promise<string>;
+export async function issueToken(env: Env, userId: string, label: string, replace: true): Promise<{ token: string; revoked: number }>;
+export async function issueToken(env: Env, userId: string, label: string, replace = false): Promise<any> {
   const b = new Uint8Array(24);
   crypto.getRandomValues(b);
   const tok = 'hunt_' + btoa(String.fromCharCode(...b)).replace(/[+/=]/g, (c) => ({ '+': '-', '/': '_', '=': '' })[c]!);
-  await env.DB.prepare('INSERT INTO tokens (hash, user_id, label, created_at) VALUES (?,?,?,?)').bind(await sha256hex(tok), userId, label, now()).run();
-  return tok;
+  const at = now();
+  const ins = env.DB.prepare('INSERT INTO tokens (hash, user_id, label, created_at) VALUES (?,?,?,?)').bind(await sha256hex(tok), userId, label, at);
+  if (!replace) { await ins.run(); return tok; }
+  const [rv] = await env.DB.batch([env.DB.prepare('UPDATE tokens SET revoked_at=? WHERE user_id=? AND revoked_at IS NULL').bind(at, userId), ins]);
+  return { token: tok, revoked: rv.meta?.changes ?? 0 };
 }
 
 async function useInvite(env: Env, code: string) {

@@ -157,6 +157,9 @@ so the CRM log stays free of duplicates.
 
 - The CRM token and the Telegram API id/hash live only in the OS keychain. They are never written
   to files and never returned by a tool.
+- Every CRM call carries `X-Hunt-Client: claude-code | codex` (`--client codex` in the Codex manifest,
+  else `HUNT_CLIENT`, else `claude-code`), so the Mini App can say which agent is connected. Nothing else
+  about the computer is sent.
 - Telegram session files are created with mode 600 before Telethon opens them. A session file is
   as powerful as a logged-in phone: do not copy, sync or commit it. Revoke it in Telegram →
   Settings → Devices ("Hunt (Claude Code)").

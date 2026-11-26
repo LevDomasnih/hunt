@@ -841,7 +841,7 @@ export async function guestState(env: Env, user: { id: string; display_name: str
     directory: dir.results ?? [], dir_groups: parseJson(s?.dir_groups, []), places: pl.results ?? [], issues: g.areas.issues ? is.results ?? [] : [],
     listings: [], votes: [], ratings: {}, viewings: [], routes: {}, drafts: [], threads: [], listing_contacts: [], channels: [], deal: null, dates: [], money: null,
     house_contacts: [], documents: [], onsite: [], onsite_photos: [], moveout: null, relet: null, power: null, visas: [], bikes: [], scans: [], items: null,
-    renewal: null, guests: [], guest_drafts: [], feed: [], counts: { new: 0, drafts: 0, replies_24h: 0 }, agent_last_seen: null,
+    renewal: null, guests: [], guest_drafts: [], feed: [], counts: { new: 0, drafts: 0, replies_24h: 0 }, agent_last_seen: null, agent_client: null,
     bot_username: env.BOT_USERNAME ?? null, photo_token: photoToken,
   };
 }

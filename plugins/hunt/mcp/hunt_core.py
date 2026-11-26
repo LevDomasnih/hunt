@@ -19,6 +19,8 @@ Token:   OS keychain via `keyring`, service "hunt", username = api_url
 Packs:   $HUNT_REGIONS or <plugin root>/regions (plugin root = parent of mcp/, or $CLAUDE_PLUGIN_ROOT)
 
 Env overrides (for headless/CI use): HUNT_CONFIG_DIR, HUNT_API_URL, HUNT_TOKEN.
+Client:  `--client codex` (the Codex manifest passes it), else $HUNT_CLIENT, else claude-code; sent as X-Hunt-Client so the
+         Mini App shows which agent is connected.
 Never prints to stdout outside the MCP protocol.
 """
 from __future__ import annotations
@@ -35,6 +37,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 import time
 import xml.etree.ElementTree as ET
@@ -64,6 +67,28 @@ except ImportError:  # Windows: no file locking, writes are still atomic
 KEYRING_SERVICE = "hunt"
 logging.getLogger("httpx").setLevel(logging.WARNING)  # no per-request INFO lines in MCP logs
 USER_AGENT = "hunt-mcp/0.1"
+_CLIENTS = ("claude-code", "codex")
+
+
+def client_name(argv: list[str] | None = None) -> str:
+    """Which agent runs this server: `--client X` / `--client=X`, else $HUNT_CLIENT, else claude-code (unknown → claude-code)."""
+    args = sys.argv[1:] if argv is None else argv
+    val = None
+    for i, a in enumerate(args):
+        if a == "--client" and i + 1 < len(args):
+            val = args[i + 1]
+        elif a.startswith("--client="):
+            val = a.split("=", 1)[1]
+    val = (val or os.environ.get("HUNT_CLIENT") or "").strip().lower()
+    return val if val in _CLIENTS else "claude-code"
+
+
+def _crm_headers(token: str = "", **extra: str) -> dict[str, str]:
+    """Headers of every call to the CRM: the user agent, which client we are, the token when there is one."""
+    h = {"User-Agent": USER_AGENT, "X-Hunt-Client": client_name(), **extra}
+    if token:
+        h["Authorization"] = f"Bearer {token}"
+    return h
 # Tests replace this with httpx.MockTransport.
 _TRANSPORT: httpx.AsyncBaseTransport | None = None
 
@@ -212,9 +237,7 @@ async def api(
     else:
         url = _norm_url(os.environ.get("HUNT_API_URL") or load_config().get("api_url") or "")
         token = ""
-    headers = {"User-Agent": USER_AGENT, "Accept": "application/json"}
-    if auth and token:
-        headers["Authorization"] = f"Bearer {token}"
+    headers = _crm_headers(token if auth else "", Accept="application/json")
     kw: dict[str, Any] = {"headers": headers, "params": _clean(params)}
     if files is not None:
         kw["files"] = files
@@ -990,7 +1013,7 @@ async def _download_media(key: str, sub: str, path: str = "/api/media") -> str:
     try:
         async with httpx.AsyncClient(base_url=url, transport=_TRANSPORT, timeout=60) as c:
             r = await c.get(path, params={"key": key},
-                            headers={"User-Agent": USER_AGENT, "Authorization": f"Bearer {token}"})
+                            headers=_crm_headers(token))
     except httpx.HTTPError as e:
         raise ToolError(f"Cannot download {key} ({type(e).__name__}).")
     if r.status_code >= 400:
@@ -1273,7 +1296,7 @@ async def doc_get(doc_id: str, out_dir: str | None = None) -> dict:
     url, token = _creds()
     try:
         async with httpx.AsyncClient(base_url=url, transport=_TRANSPORT, timeout=120) as c:
-            r = await c.get(f"/api/documents/{_q(doc_id)}/file", headers={"User-Agent": USER_AGENT, "Authorization": f"Bearer {token}"})
+            r = await c.get(f"/api/documents/{_q(doc_id)}/file", headers=_crm_headers(token))
     except httpx.HTTPError as e:
         raise ToolError(f"Cannot download document {doc_id} ({type(e).__name__}).")
     if r.status_code >= 400:
@@ -1859,8 +1882,11 @@ _SLUG_PATH = re.compile(r"^[a-z0-9_-]+(/[a-z0-9_-]+){0,2}$")
 
 
 def plugin_root() -> Path:
-    env = os.environ.get("CLAUDE_PLUGIN_ROOT")
-    return Path(env).expanduser() if env else Path(__file__).resolve().parent.parent
+    # Codex does not expand ${CLAUDE_PLUGIN_ROOT}: a literal "${...}" or a folder that is not there means "not set".
+    env = os.environ.get("CLAUDE_PLUGIN_ROOT") or ""
+    if env and "${" not in env and Path(env).expanduser().is_dir():
+        return Path(env).expanduser()
+    return Path(__file__).resolve().parent.parent
 
 
 def regions_root() -> Path:
