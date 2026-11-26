@@ -14,7 +14,7 @@ import { Env, HttpError, hmac, hex, now, parseJson } from './util';
 import { kvPhoto, mediaHeaders, rateLimit } from './media';
 import { fnv, proxySrc, safeImageFetch } from './ssrf';
 export { fnv, proxySrc };
-import { h } from './wave5';
+import { h } from './local';
 import { packData } from './life';
 
 /** GET /img/e/<event_id>/<v> (public, rate-limited per IP by the caller). */

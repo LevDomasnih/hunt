@@ -16,11 +16,21 @@ import { insertExpense, upsertIssue, cleanShortName } from './agent';
 import { cleanRooms, MONEY_MODES } from './money';
 import { ownerOfSearch, requireContact } from './household';
 import { contactNotes, addNote, searchPower, moveoutView, reletView, setDirEntry, addDirGroup, cleanAnchor, MOVEOUT_STEPS } from './life';
-import {
-  member, needArea, guestOnly, guestState, guestOpen, localDay, surfView, surfOn, guideView, setGuide, guideLink, renewalSql, renewalFromRow, voteNext,
-  negotiationView, recapView, createGuestInvite, guestsView, setGuest, guestMessage, Role,
-} from './wave5';
-import { locationScores, locationView, patchPlace, recomputeRings, setBike, payBike, bikeView, scansOf, setItem, itemsView, addFloodNote, matchDossiers } from './wave4';
+import { member, needArea, guestOnly, guestOpen, type Role } from './roles';
+import { guestState, createGuestInvite, guestsView, setGuest, guestMessage } from './guests';
+import { localDay } from './local';
+import { surfView, surfOn } from './surf';
+import { guideView, setGuide, guideLink } from './guide';
+import { renewalSql, renewalFromRow, voteNext } from './renewal';
+import { negotiationView } from './negotiation';
+import { recapView } from './recap';
+import { locationScores, locationView, recomputeRings } from './location';
+import { patchPlace } from './places';
+import { setBike, payBike, bikeView } from './bikes';
+import { scansOf } from './scans';
+import { setItem, itemsView } from './items';
+import { addFloodNote } from './flood';
+import { matchDossiers } from './dossier';
 import { usefulApp } from './useful';
 import { afishaApp } from './afisha';
 import { partyApp } from './party';

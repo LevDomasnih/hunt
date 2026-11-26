@@ -4,7 +4,7 @@ import { handleWebhook, setupInvite, adminExists, BOT_COMMANDS, BOT_UPDATES } fr
 import { handleApp, signLink, LINK_MAX_DAYS } from './app';
 import { tg } from './tg';
 import { runCron } from './notify';
-import { handleGuidePage } from './wave5';
+import { handleGuidePage } from './guide';
 import { rateLimit } from './media';
 import { withStage } from './stage';
 import { handlePartyPage } from './party';

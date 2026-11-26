@@ -9,7 +9,8 @@ import { Env, HttpError, json, body, now, rid, parseJson, event, sensitive, http
 import { contactByAddress } from './household';
 import { packData } from './life';
 import { countryOf } from './members';
-import { member, localDay, h, searchTzOf, type Access, type Role } from './wave5';
+import { member, type Access, type Role } from './roles';
+import { localDay, h, searchTzOf } from './local';
 import { draftToOwner, dmMembers, appUrl, localMinutes, commit } from './notify';
 import { tg } from './tg';
 import { rateLimit } from './media';

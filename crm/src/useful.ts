@@ -8,7 +8,7 @@ import { Env, HttpError, json, body, now, rid, parseJson, event, sensitive, http
 import { ownerOfSearch } from './household';
 import { rateLimit } from './media';
 import { countryOf } from './members';
-import { member } from './wave5';
+import { member } from './roles';
 
 export const USEFUL_CATS = ['chats_rent', 'flea', 'bikes', 'news', 'visas', 'medicine', 'food', 'apps', 'guides', 'maps', 'other'] as const;
 export const USEFUL_KINDS = ['telegram', 'app', 'web', 'hunt'] as const;

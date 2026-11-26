@@ -50,6 +50,6 @@ def test_git(repo, monkeypatch):
     for a in (["init", "-q"], ["add", "-A"], ["-c", "user.email=a@example.com", "-c", "user.name=a", "commit", "-qm", "x"]):
         subprocess.run(["git", *a], cwd=repo, check=True)
     real = hc._git
-    monkeypatch.setattr(hc, "_git", lambda *a, cwd=None: real(*[str(repo) if x == "https://example.com/data" else x for x in a], cwd=cwd))
+    monkeypatch.setattr(hc.owner_of("_git"), "_git", lambda *a, cwd=None: real(*[str(repo) if x == "https://example.com/data" else x for x in a], cwd=cwd))
     r = run(hc.packs_update("https://example.com/data"))
     assert r["countries"] == ["xx"] and len(r["version"]) >= 7

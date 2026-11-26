@@ -60,7 +60,7 @@ def body(req):
 @pytest.fixture
 def net(monkeypatch, isolated):
     fake = FakeNet()
-    monkeypatch.setattr(hc, "_TRANSPORT", httpx.MockTransport(fake))
+    monkeypatch.setattr(hc.owner_of("_TRANSPORT"), "_TRANSPORT", httpx.MockTransport(fake))
     hc.update_config(lambda c: c.__setitem__("api_url", URL))
     isolated.set_password("hunt", URL, TOKEN)
     return fake
@@ -74,9 +74,9 @@ def web(net, monkeypatch):
     async def fake_sleep(s):
         sleeps.append(s)
 
-    monkeypatch.setattr(hc, "_sleep", fake_sleep)
-    monkeypatch.setattr(hc, "_host_last", {})
-    monkeypatch.setattr(hc, "_host_interval", {})
+    monkeypatch.setattr(hc.owner_of("_sleep"), "_sleep", fake_sleep)
+    monkeypatch.setattr(hc.owner_of("_host_last"), "_host_last", {})
+    monkeypatch.setattr(hc.owner_of("_host_interval"), "_host_interval", {})
     net.sleeps = sleeps
     net.on("GET", "/robots.txt", httpx.Response(200, text="User-agent: *\nAllow: /\n", headers={"content-type": "text/plain"}))
     return net

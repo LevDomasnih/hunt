@@ -3,7 +3,8 @@
 // Starts its own `wrangler dev` on a throwaway local database; nothing leaves the machine.   node scripts/test-households.mjs
 import { execFileSync, spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { DatabaseSync } from 'node:sqlite';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -17,9 +18,13 @@ writeFileSync(cfg, readFileSync(join(crm, 'wrangler.toml'), 'utf8').replace(/dat
   .replace('main = "src/index.ts"', `main = "${crm}/src/index.ts"`).replace('migrations_dir = "migrations"', `migrations_dir = "${crm}/migrations"`).replace('directory = "./public"', `directory = "${crm}/public"`));
 const CFG = ['--config', cfg, '--persist-to', join(dir, 'db')];
 const wr = (a) => execFileSync('npx', ['--no-install', 'wrangler', ...a], { cwd: crm, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
-const exec = (q) => wr(['d1', 'execute', 'hunt-test', '--local', ...CFG, '--command', q]);
-const rows = (q) => JSON.parse(wr(['d1', 'execute', 'hunt-test', '--local', '--json', ...CFG, '--command', q])).at(-1).results;
-const kvKeys = () => JSON.parse(wr(['kv', 'key', 'list', '--binding', 'PHOTOS_KV', '--local', ...CFG])).map((k) => k.name);
+// The local database and KV are read straight from wrangler's sqlite files: a second wrangler on the same files while
+// `wrangler dev` runs made the worker stop answering on CI machines.
+const sqliteOf = (kind) => { const d = join(dir, 'db', 'v3', kind); const f = readdirSync(d).find((x) => /^[0-9a-f]{64}\.sqlite$/.test(x)); if (!f) throw new Error(`no ${kind} sqlite yet`); const db = new DatabaseSync(join(d, f)); db.exec('PRAGMA busy_timeout = 5000'); return db; };
+const withDb = (kind, fn) => { const db = sqliteOf(kind); try { return fn(db); } finally { db.close(); } };
+const exec = (q) => withDb('d1/miniflare-D1DatabaseObject', (db) => db.exec(q));
+const rows = (q) => withDb('d1/miniflare-D1DatabaseObject', (db) => db.prepare(q).all().map((r) => ({ ...r })));
+const kvKeys = () => withDb('kv/miniflare-KVNamespaceObject', (db) => db.prepare('SELECT key FROM _mf_entries').all().map((r) => r.key));
 let pass = 0, fail = 0;
 const ok = (c, name, x = '') => { if (c) pass++; else { fail++; console.log(`FAIL ${name} ${JSON.stringify(x)?.slice(0, 400)}`); } };
 const sleep = (ms) => new Promise((f) => setTimeout(f, ms));

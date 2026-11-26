@@ -9,13 +9,23 @@ import { cleanChecks, cleanDates, cleanSummary, docView, dealDates, DOC_KINDS, D
 import { tg, tgFileStream } from './tg';
 import { cleanRooms, MONEY_MODES } from './money';
 import { contactNotes, addNote, searchPower, addReading, setMoveout, moveoutView, setRelet, setLead, reletView, setDirEntry, addDirGroup, cleanTravel } from './life';
-import {
-  upsertPlaces, patchPlace, basePlaces, setIsochrones, locationView, locationScores, setFlood, setBike, payBike, bikeView, setScan, scansOf,
-  setDossier, addDossierItem, dossierView, matchDossiers, setItem, itemsView, ringSet, sameRings,
-} from './wave4';
+import { upsertPlaces, patchPlace } from './places';
+import { basePlaces } from './assets';
+import { setIsochrones, locationView, locationScores, ringSet, sameRings } from './location';
+import { setFlood } from './flood';
+import { setBike, payBike, bikeView } from './bikes';
+import { setScan, scansOf } from './scans';
+import { setDossier, addDossierItem, dossierView, matchDossiers } from './dossier';
+import { setItem, itemsView } from './items';
 import { countryOf, publicBrief } from './members';
 import { mediaHeaders } from './media';
-import { surfView, guideView, setGuide, renewalView, ensureRenewal, cloneSearch, negotiationView, setDealPrices, autoDealPrices, notePrice, recapView, guestsView, homeListing } from './wave5';
+import { surfView } from './surf';
+import { guideView, setGuide } from './guide';
+import { renewalView, ensureRenewal, cloneSearch } from './renewal';
+import { negotiationView, setDealPrices, autoDealPrices, notePrice } from './negotiation';
+import { recapView } from './recap';
+import { guestsView } from './guests';
+import { homeListing } from './homepoint';
 import { usefulAgent } from './useful';
 import { afishaAgent, bookingDraftSent } from './afisha';
 import { partyAgent } from './party';
@@ -246,7 +256,7 @@ export async function handleAgent(req: Request, env: Env, path: string): Promise
           vals.push(b.shares == null ? null : JSON.stringify(cleanWeights(b.shares, ids)));
         }
         if (sets.length) await DB.prepare(`UPDATE searches SET ${sets.join(',')}, updated_at=? WHERE id=?`).bind(...vals, now(), s.id).run();
-        if ('brief' in b) { const { recomputeRings } = await import('./wave4'); await recomputeRings(env, s.id); }
+        if ('brief' in b) { const { recomputeRings } = await import('./location'); await recomputeRings(env, s.id); }
         return json({ search: await ownSearch(ctx, s.id) });
       }
     }
@@ -553,7 +563,7 @@ export async function handleAgent(req: Request, env: Env, path: string): Promise
     if (!pl) throw new HttpError(404, 'no_place');
     if (m === 'DELETE') {
       await DB.prepare('DELETE FROM places WHERE id=?').bind(pl.id).run();
-      const { recomputeRings } = await import('./wave4');
+      const { recomputeRings } = await import('./location');
       await recomputeRings(env, pl.search_id);
       return json({ ok: true });
     }

@@ -63,14 +63,14 @@ def body(req):
 @pytest.fixture
 def net(monkeypatch, isolated):
     fake = FakeNet()
-    monkeypatch.setattr(hc, "_TRANSPORT", httpx.MockTransport(fake))
-    monkeypatch.setattr(hc, "_VALHALLA_MIN_INTERVAL", 0)
-    monkeypatch.setattr(hc, "_OPEN_METEO_MIN_INTERVAL", 0)
+    monkeypatch.setattr(hc.owner_of("_TRANSPORT"), "_TRANSPORT", httpx.MockTransport(fake))
+    monkeypatch.setattr(hc.owner_of("_VALHALLA_MIN_INTERVAL"), "_VALHALLA_MIN_INTERVAL", 0)
+    monkeypatch.setattr(hc.owner_of("_OPEN_METEO_MIN_INTERVAL"), "_OPEN_METEO_MIN_INTERVAL", 0)
     sleeps = []
 
     async def no_sleep(s):
         sleeps.append(s)
-    monkeypatch.setattr(hc, "_sleep", no_sleep)
+    monkeypatch.setattr(hc.owner_of("_sleep"), "_sleep", no_sleep)
     fake.sleeps = sleeps
     hc.update_config(lambda c: c.__setitem__("api_url", URL))
     isolated.set_password("hunt", URL, TOKEN)
@@ -542,7 +542,7 @@ def test_scan_prepare_compresses_big_file(tmp_path, monkeypatch):
         out = Path(cmd[5])
         out.write_bytes(b"c" * (2000 if len(calls) == 1 else 500))
         return hc.subprocess.CompletedProcess(cmd, 0, "", "")
-    monkeypatch.setattr(hc, "_run_cmd", fake_run)
+    monkeypatch.setattr(hc.owner_of("_run_cmd"), "_run_cmd", fake_run)
     out = run(hc.scan_prepare(str(g), max_mb=0.001))  # limit 1048 bytes
     assert out["compressed"] and len(out["steps"]) == 2 and Path(out["path"]).read_bytes() == b"c" * 500
     assert Path(out["path"]).parent == hc.config_dir() / "scans" and Path(out["path"]).name == "big_room.min.glb"
@@ -553,14 +553,14 @@ def test_scan_prepare_compresses_big_file(tmp_path, monkeypatch):
 
     def failing(cmd, cwd, timeout):
         return hc.subprocess.CompletedProcess(cmd, 1, "", "Error: bad glb")
-    monkeypatch.setattr(hc, "_run_cmd", failing)
+    monkeypatch.setattr(hc.owner_of("_run_cmd"), "_run_cmd", failing)
     with pytest.raises(ToolError, match="bad glb"):
         run(hc.scan_prepare(str(g), max_mb=0.001))
 
     def too_big(cmd, cwd, timeout):
         Path(cmd[5]).write_bytes(b"c" * 4000)
         return hc.subprocess.CompletedProcess(cmd, 0, "", "")
-    monkeypatch.setattr(hc, "_run_cmd", too_big)
+    monkeypatch.setattr(hc.owner_of("_run_cmd"), "_run_cmd", too_big)
     with pytest.raises(ToolError, match="still"):
         run(hc.scan_prepare(str(g), max_mb=0.001))
 

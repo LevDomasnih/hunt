@@ -65,7 +65,7 @@ def body(req):
 @pytest.fixture
 def net(monkeypatch, isolated):
     fake = FakeNet()
-    monkeypatch.setattr(hc, "_TRANSPORT", httpx.MockTransport(fake))
+    monkeypatch.setattr(hc.owner_of("_TRANSPORT"), "_TRANSPORT", httpx.MockTransport(fake))
     hc.update_config(lambda c: c.__setitem__("api_url", URL))
     isolated.set_password("hunt", URL, TOKEN)
     return fake
@@ -350,7 +350,7 @@ def test_photo_url_download(net, tmp_path):
 
 
 def test_photo_size_cap(net, monkeypatch):
-    monkeypatch.setattr(hc, "PHOTO_MAX_BYTES", 1000)
+    monkeypatch.setattr(hc.owner_of("PHOTO_MAX_BYTES"), "PHOTO_MAX_BYTES", 1000)
     net.on("GET", "/big.jpg", httpx.Response(200, content=b"x" * 5000, headers={"content-type": "image/jpeg"}))
     with pytest.raises(ToolError, match="larger"):
         run(hc.event_photo_check("https://cdn.example.com/big.jpg"))
@@ -481,7 +481,7 @@ def test_event_photo_fetch_og_image(net, tmp_path):
 
 
 def test_public_host_rejects_private_ips(monkeypatch):
-    monkeypatch.setattr(hc, "_TRANSPORT", None)
+    monkeypatch.setattr(hc.owner_of("_TRANSPORT"), "_TRANSPORT", None)
     assert not hc._public_host("127.0.0.1") and not hc._public_host("100.64.1.1") and not hc._public_host("fd00::1")
     assert hc._public_host("8.8.8.8")
 

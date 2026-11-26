@@ -58,12 +58,12 @@ def body(req):
 @pytest.fixture
 def net(monkeypatch, isolated):
     fake = FakeNet()
-    monkeypatch.setattr(hc, "_TRANSPORT", httpx.MockTransport(fake))
-    monkeypatch.setattr(hc, "_VALHALLA_MIN_INTERVAL", 0)
+    monkeypatch.setattr(hc.owner_of("_TRANSPORT"), "_TRANSPORT", httpx.MockTransport(fake))
+    monkeypatch.setattr(hc.owner_of("_VALHALLA_MIN_INTERVAL"), "_VALHALLA_MIN_INTERVAL", 0)
 
     async def no_sleep(s):
         pass
-    monkeypatch.setattr(hc, "_sleep", no_sleep)
+    monkeypatch.setattr(hc.owner_of("_sleep"), "_sleep", no_sleep)
     hc.update_config(lambda c: c.__setitem__("api_url", URL))
     isolated.set_password("hunt", URL, TOKEN)
     return fake

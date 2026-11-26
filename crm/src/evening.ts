@@ -13,7 +13,7 @@ export const PARK_MIN = 10; // parking the bike, finding the place
 const fmtHM = (min: number) => { const m = ((min % 1440) + 1440) % 1440; return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`; };
 
 /**
- * When to leave for an event: free-flow ride minutes (already road-corrected, see wave5.minutesKm), times the city's rush
+ * When to leave for an event: free-flow ride minutes (already road-corrected, see homepoint.minutesKm), times the city's rush
  * factor when the ride falls into rush hours, plus PARK_MIN; rounded down to 5 minutes. Returns null without a ride time.
  * `atHome` = the event is at the home itself (a party): no ride.
  */
