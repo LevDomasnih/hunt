@@ -1,0 +1,79 @@
+# Афиша (wave 7) core defaults: which live effect an event photo may carry.
+# A country can override any key in regions/<country>/events.yaml (a city in <country>/<city>/events.yaml);
+# crm/scripts/copy-art.mjs merges generic -> country -> city and exports <country>.events to public/art/regions.json.
+#
+# effects:  key = an event topic (fine slug, e.g. kecak) or a category (coarse, e.g. party); the Worker looks up the
+#           topic first, then the category; anything not listed gets no effect.
+#           value = a shader name, or {shader: <name>, mix: 0..1} (mix = overlay strength, default 1).
+#           Shaders (design/shaders/<name>.glsl, premultiplied alpha): embers, caustics, bokeh, foam, mist, rays, droplets,
+#           steam, smoke, grain, confetti, stars, fireflies, neon, floodlight; `none` = explicitly no effect.
+#           One effect per photo, a content moment, never chrome decoration (DESIGN.md).
+# sources:  not used here (event sources are per country).
+# party:    wave 9 "Своя тусовка" defaults (a country overrides key by key): quiet_after "HH:MM", hint_ru / hint_en (the hint
+#           on the party screen), notice_owner / notice_neighbours (offer an approval draft to them), fines_ru / fines_en
+#           (optional, only what is known locally; never invent amounts).
+# Strict YAML subset (copy-art.mjs): one key per line, one-line values, own-line comments.
+effects:
+  # fire shows
+  fire_show: embers
+  kecak: embers
+  # sea: caustic light, screen-like tint at ~35%
+  sea: {shader: caustics, mix: 0.35}
+  snorkel: {shader: caustics, mix: 0.35}
+  diving: {shader: caustics, mix: 0.35}
+  boat: {shader: caustics, mix: 0.35}
+  # music and dance
+  music: bokeh
+  live_music: bokeh
+  dance: bokeh
+  # surf
+  surf: foam
+  surf_meetup: foam
+  # volcano and sunrise hikes
+  volcano: mist
+  sunrise_hike: mist
+  # yoga and wellness
+  yoga: rays
+  meditation: rays
+  wellness: rays
+  # waterfalls, rivers
+  waterfall: droplets
+  river: droplets
+  rafting: droplets
+  # markets and food
+  market: steam
+  food: steam
+  cooking_class: steam
+  # temples and ceremonies: incense smoke
+  temple: smoke
+  ceremony: smoke
+  # cinema: film grain
+  cinema: grain
+  # festivals, celebrations, kids, beach clubs
+  festival: confetti
+  celebration: confetti
+  kids: confetti
+  beach_club: confetti
+  # night sky
+  stargazing: stars
+  night_tour: stars
+  jungle_night: fireflies
+  # bars and parties: neon light sweeps
+  bar: neon
+  party: neon
+  club: neon
+  dj: neon
+  pub_crawl: neon
+  # night sport: floodlights
+  padel: floodlight
+  night_sport: floodlight
+  # no effect
+  workshop: none
+  sport: none
+  other: none
+party:
+  quiet_after: "23:00"
+  hint_ru: "После 23:00 потише: соседям может быть рано вставать, а у хозяина могут быть свои правила в договоре. Предупредите хозяина заранее"
+  hint_en: "Keep it down after 23:00: the neighbours may be up early and the owner may have house rules in the lease. Warn the owner in advance"
+  notice_owner: true
+  notice_neighbours: true

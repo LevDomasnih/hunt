@@ -1,0 +1,16 @@
+{
+  "name": "hunt",
+  "version": "0.1.0",
+  "description": "Rent and run a home abroad with friends: your agent, your accounts, a Telegram Mini App.",
+  "keywords": [
+    "rental",
+    "housing",
+    "relocation",
+    "telegram",
+    "whatsapp",
+    "bali",
+    "thailand",
+    "kazakhstan"
+  ],
+  "license": "AGPL-3.0-only"
+}

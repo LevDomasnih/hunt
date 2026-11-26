@@ -1,0 +1,15 @@
+id: xx
+name: {en: Testland, ru: Тестляндия}
+currency: XXD
+timezone: Asia/Makassar
+languages:
+  - {code: en, note: "default"}
+listing_fields:
+  pool: {type: enum, values: [private, shared, none]}
+typical_terms:
+  min_term: "1 month"
+  deposit: "1 month"
+  payment_methods: [cash, bank_transfer]
+red_flags:
+  - {pattern: "pay before viewing", why: "scam"}
+verified: 2026-11

@@ -1,0 +1,473 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+
+<script type="importmap">{ "imports": { "three": "/node_modules/three/build/three.module.js", "three/addons/": "/node_modules/three/examples/jsm/" } }</script>
+</head><body style="margin:0;background:transparent">
+<script type="module">
+import * as THREE from 'three';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { house, landmark, VARIANTS } from './houses.js';
+
+const hex = (c) => new THREE.Color(c);
+const mix = (a, b, k) => hex(a).lerp(hex(b), k);
+const img = (src) => new Promise((ok) => { const i = new Image(); i.onload = () => ok(i); i.src = src; });
+const pixels = async (src, w, h) => { const i = await img(src); const c = new OffscreenCanvas(w, h); const x = c.getContext('2d'); x.drawImage(i, 0, 0, w, h); return x.getImageData(0, 0, w, h).data; };
+
+window.render = async (S, o) => {
+  if (!o.export) for (const w of [600, 700]) { await document.fonts.load(`${w} 30px "Inter Tight"`, 'Дорчол Zemun'); await document.fonts.load(`italic ${w} 30px "Inter Tight"`, 'Дунай'); }
+  const W = S.w, H = S.h, scr = S.screen;
+  const out = o.size ?? [1600, 1300];
+  const R = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+  R.setSize(out[0], out[1]); R.setPixelRatio(1); R.outputColorSpace = THREE.SRGBColorSpace;
+  R.toneMapping = THREE.NeutralToneMapping; R.shadowMap.enabled = true; R.shadowMap.type = THREE.PCFSoftShadowMap;
+  document.body.appendChild(R.domElement);
+  const scene = new THREE.Scene();
+  scene.environment = new THREE.PMREMGenerator(R).fromScene(new RoomEnvironment(), 0.04).texture;
+  scene.environmentIntensity = 0.55;
+  const sun = new THREE.DirectionalLight(0xffffff, 2.2); sun.position.set(-900, 650, 500); sun.castShadow = true;
+  Object.assign(sun.shadow.camera, { left: -900, right: 900, top: 900, bottom: -900, near: 10, far: 3000 }); sun.shadow.mapSize.set(4096, 4096); sun.shadow.bias = -0.0008; sun.shadow.normalBias = 2.5; sun.shadow.radius = 6;
+  scene.add(sun, new THREE.HemisphereLight(0xffffff, hex(scr), 0.6));
+
+  if (o.catalog) {
+    let seed = 5; const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+    const plate = new THREE.Mesh(new THREE.BoxGeometry(260, 6, 120), new THREE.MeshStandardMaterial({ color: scr, roughness: 0.8 })); plate.position.y = -3; plate.receiveShadow = true; scene.add(plate);
+    let x = -110;
+    for (const [cls, n] of Object.entries(VARIANTS)) {
+      for (let v = 0; v < n; v++) { for (let r = 0; r < 2; r++) { const h = house(cls, v, rnd, 1); h.position.set(x, 0, -22 + r * 40); h.rotation.y = -0.35; scene.add(h); } x += cls === 'high' ? 30 : 20; }
+      x += 8;
+    }
+    const cam = new THREE.PerspectiveCamera(20, out[0] / out[1], 10, 5000); cam.position.set(0, 230, 520); cam.lookAt(0, 14, 0);
+    R.render(scene, cam); const c2 = document.createElement('canvas'); c2.width = out[0]; c2.height = out[1]; const x2 = c2.getContext('2d');
+    if (o.bg) { x2.fillStyle = o.bg; x2.fillRect(0, 0, out[0], out[1]); }
+    x2.drawImage(R.domElement, 0, 0); return c2.toDataURL('image/png');
+  }
+  // world: x right, z down the map (y of the image), y up; centred
+  const X = (px) => px - W / 2, Z = (py) => py - H / 2;
+  const T = o.thick ?? 26, relief = o.relief ?? 0, towers = o.towers ?? false;
+  const mask = await pixels(S.mask, W, H), hgt = await pixels(S.height, W, H), heat = await pixels(S.heat, W, H);
+  const hm = (i, j) => { i = Math.max(0, Math.min(W - 1, i | 0)); j = Math.max(0, Math.min(H - 1, j | 0)); return hgt[(j * W + i) * 4] / 255; };
+  const tierOfL = (x, y) => { const v = hm(x, y) * 260; return (S.tiers ?? []).filter((t) => v > t.lvl + 4).length; };
+  const inside = (i, j) => { i = Math.max(0, Math.min(W - 1, i | 0)); j = Math.max(0, Math.min(H - 1, j | 0)); return mask[(j * W + i) * 4] > 127; };
+  // soft edge so the relief meets the slab top at the shore
+  const edgeK = (i, j) => { let n = 0, k = 0; for (let dj = -36; dj <= 36; dj += 9) for (let di = -36; di <= 36; di += 9) { n++; if (inside(i + di, j + dj)) k++; } const v = Math.min(1, Math.max(0, (k / n - 0.7) / 0.3)); return v * v * (3 - 2 * v); };
+  const RELIEF = relief * 0.4;  // px per relief unit (0..255 -> 0..260 m)
+
+  // the printed layer: labels in ink on the land colour, optional people heat
+  const tex = document.createElement('canvas'); tex.width = W * 2; tex.height = H * 2;
+  const g = tex.getContext('2d'); g.scale(2, 2);
+  g.fillStyle = scr; g.fillRect(0, 0, W, H);
+  if (o.heat) {
+    const hc = document.createElement('canvas'); hc.width = W; hc.height = H; const hx = hc.getContext('2d');
+    const id = hx.createImageData(W, H);
+    const hot = hex(o.hot ?? '#FF8A5B'), mid = hex(o.mid ?? '#FFE27A');
+    for (let p = 0; p < W * H; p++) {
+      const v = heat[p * 4] / 255; if (v < 0.05) continue;
+      const c = v < 0.5 ? hex(scr).lerp(mid, v / 0.5) : mid.clone().lerp(hot, (v - 0.5) / 0.5);
+      id.data[p * 4] = c.r * 255; id.data[p * 4 + 1] = c.g * 255; id.data[p * 4 + 2] = c.b * 255; id.data[p * 4 + 3] = Math.min(200, Math.pow(v, 1.3) * 1.6 * 255);
+    }
+    hx.putImageData(id, 0, 0); g.globalAlpha = 0.85; g.drawImage(hc, 0, 0); g.globalAlpha = 1;
+  }
+  const TONES = ['#C9D0FF', '#FFE27A', '#FFB65C', '#FF8A5B'];
+  const inLand = (x, y) => mask[((y | 0) * W + (x | 0)) * 4] > 127;
+  if (o.people === 'dots') {           // printed halftone: bigger dot = more people
+    for (let y = 6; y < H; y += 11) for (let x = 6 + ((y / 11) % 2) * 5.5; x < W; x += 11) {
+      if (!inLand(x, y)) continue;
+      const v = Math.pow(heat[((y | 0) * W + (x | 0)) * 4] / 255, 2.2); if (v < 0.04) continue;
+      g.fillStyle = o.dotInk ?? 'rgba(21,20,19,.5)'; g.beginPath(); g.arc(x, y, 0.7 + 4.6 * Math.sqrt(v), 0, 7); g.fill();
+    }
+  }
+  if (o.people === 'hex') {            // H3 cells as stickers, four steps
+    const ps = S.hexes.map((h) => h.p).sort((a, b) => a - b), q = (f) => ps[Math.floor(f * (ps.length - 1))];
+    const cut = [q(0.35), q(0.65), q(0.88)];
+    for (const h of S.hexes) {
+      const k = cut.filter((c) => h.p > c).length;
+      const c = h.b.reduce((a, p) => [a[0] + p[0] / h.b.length, a[1] + p[1] / h.b.length], [0, 0]);
+      g.beginPath(); h.b.forEach(([x, y], i) => { const px = c[0] + (x - c[0]) * 0.84, py = c[1] + (y - c[1]) * 0.84; i ? g.lineTo(px, py) : g.moveTo(px, py); }); g.closePath();
+      g.fillStyle = TONES[k]; g.globalAlpha = k ? 0.95 : 0.55; g.fill(); g.globalAlpha = 1;
+    }
+  }
+  if (o.people === 'bands') {          // calm patches in three tones, soft edges
+    const id = g.getImageData(0, 0, W * 2, H * 2);
+    const cols = TONES.slice(1).map(hex), th = [0.62, 0.8, 0.93];
+    for (let y = 0; y < H * 2; y++) for (let x = 0; x < W * 2; x++) {
+      const v = heat[((y >> 1) * W + (x >> 1)) * 4] / 255; if (v < th[0] - 0.03 || !inLand(x >> 1, y >> 1)) continue;
+      let k = th.filter((t) => v > t).length - 1, e = Math.min(1, Math.max(0, (v - th[Math.max(0, k)]) / 0.03));
+      if (k < 0) { k = 0; e = Math.max(0, (v - th[0] + 0.03) / 0.03); }
+      const prev = k ? cols[k - 1] : null, c = prev ? prev.clone().lerp(cols[k], e) : cols[0], a = prev ? 1 : e;
+      const i = (y * W * 2 + x) * 4;
+      id.data[i] = id.data[i] * (1 - a) + c.r * 255 * a; id.data[i + 1] = id.data[i + 1] * (1 - a) + c.g * 255 * a; id.data[i + 2] = id.data[i + 2] * (1 - a) + c.b * 255 * a;
+    }
+    g.putImageData(id, 0, 0);
+  }
+  // parks and forests: a soft green on the land
+  if (o.green) {
+    g.fillStyle = o.greenFill ?? '#B9E3A6'; g.globalAlpha = 0.85;
+    for (const poly of S.green ?? []) { g.beginPath(); poly[0].forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y))); g.closePath(); g.fill(); }
+    g.globalAlpha = 1;
+  }
+  if (o.roads) {
+    g.lineJoin = g.lineCap = 'round';
+    for (const pass of [0, 1]) for (const r of S.roads ?? []) {
+      g.strokeStyle = pass ? 'rgba(255,255,255,.75)' : 'rgba(21,20,19,.10)'; g.lineWidth = r.w * (o.roadK ?? 1.1) + (pass ? 0 : 1.6);
+      g.beginPath(); r.p.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y))); g.stroke();
+    }
+  }
+  // district borders: a soft groove (a dark line with a light edge under it)
+  if (o.borders !== false && !o.walls) {
+    g.lineJoin = g.lineCap = 'round';
+    for (const [col, wd, dy] of [['rgba(255,255,255,.6)', 3, 1.6], [o.borderInk ?? 'rgba(21,20,19,.42)', 2.2, 0]]) {
+      g.strokeStyle = col; g.lineWidth = wd;
+      for (const ln of S.borders ?? []) { g.beginPath(); ln.forEach(([x, y], i) => (i ? g.lineTo(x, y + dy) : g.moveTo(x, y + dy))); g.stroke(); }
+    }
+  }
+  const decals = [], anchors = [];
+  const boxes = o.towers ? S.towers.map((t) => [t.x - 8, t.y - 34, t.x + 8, t.y + 4]) : [];
+  const PRI = ['palilula', 'stari_grad', 'vracar', 'savamala_bw', 'zvezdara', 'novi_beograd'];
+  const lab = [...S.labels].sort((a, b) => ((PRI.indexOf(a.id) + 99) % 99) - ((PRI.indexOf(b.id) + 99) % 99));
+  for (let l of lab) {
+    if (l.river) continue;
+    const fs = o.fs ?? 18;
+    g.font = `650 ${fs}px "Inter Tight"`; g.letterSpacing = '-0.3px';
+    const w = g.measureText(l.text).width;
+    let b = null;
+    for (const [dx, dy] of [[0, 0], [14, 0], [-14, 0], [0, 12], [0, -12], [26, 0], [-26, 0], [0, 22], [0, -22], [44, 0], [-44, 0], [0, 40], [0, -40], [30, 26], [-30, 26], [30, -26], [-30, -26], [70, 0], [-70, 0], [0, 60], [0, -60], [60, 40], [-60, 40], [60, -40], [-60, -40], [50, 12], [-50, 12], [50, -12], [-50, -12], [36, 34], [-36, 34], [90, 0], [-90, 0], [0, 80]]) {
+      const c0 = [l.x + dx - w / 2 - 2, l.y + dy - fs / 2 - 1, l.x + dx + w / 2 + 2, l.y + dy + fs / 2 + 1];
+      const flat = !o.tiers || (S.tiers && (() => { const k = tierOfL(c0[0] + 2, l.y + dy); return [c0[2] - 2, (c0[0] + c0[2]) / 2].every((x) => tierOfL(x, l.y + dy) === k) && tierOfL(c0[0] + 2, l.y + dy - fs / 2) === k && tierOfL(c0[2] - 2, l.y + dy + fs / 2) === k; })());
+      const onLand = [[c0[0] + 6, (c0[1] + c0[3]) / 2], [c0[2] - 6, (c0[1] + c0[3]) / 2], [(c0[0] + c0[2]) / 2, c0[1] + 2], [(c0[0] + c0[2]) / 2, c0[3] - 2]].every(([x, y]) => inside(x, y));
+      if (flat && onLand && !boxes.some((c) => c0[0] < c[2] && c0[2] > c[0] && c0[1] < c[3] && c0[3] > c[1])) { b = c0; l = { ...l, x: l.x + dx, y: l.y + dy }; break; }
+    }
+    if (!b) {   // last resort: the anchor itself, if no other name is there (a tower may cover a letter)
+      const c0 = [l.x - w / 2 - 2, l.y - fs / 2 - 1, l.x + w / 2 + 2, l.y + fs / 2 + 1];
+      if (boxes.slice(o.towers ? S.towers.length : 0).some((c) => c0[0] < c[2] && c0[2] > c[0] && c0[1] < c[3] && c0[3] > c[1])) { (window.dropped ??= []).push(l.text); continue; }
+      b = c0;
+    }
+    boxes.push(b);
+    if (o.tiers) { decals.push({ ...l, w, fs }); continue; }
+    if (o.labels === 'signs' || o.labels === 'callouts' || o.labels === 'none' || o.export) { anchors.push({ ...l, w, fs }); boxes.pop(); continue; }
+    g.fillStyle = o.ink ?? 'rgba(21,20,19,.78)'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(l.text, l.x, l.y);
+  }
+  const map = new THREE.CanvasTexture(tex); map.colorSpace = THREE.SRGBColorSpace; map.anisotropy = 8;
+
+  // slab: extruded outline
+  const side = new THREE.MeshStandardMaterial({ color: mix(scr, '#151413', 0.28), roughness: 0.75 });
+  const topM = new THREE.MeshStandardMaterial({ map, roughness: 0.85 });
+  for (const poly of S.land) {
+    const sh = new THREE.Shape(poly[0].map(([x, y]) => new THREE.Vector2(X(x), -Z(y))));
+    for (const hole of poly.slice(1)) sh.holes.push(new THREE.Path(hole.map(([x, y]) => new THREE.Vector2(X(x), -Z(y)))));
+    const geo = new THREE.ExtrudeGeometry(sh, { depth: T, bevelEnabled: true, bevelThickness: 4, bevelSize: 4, bevelSegments: 4, curveSegments: 4 });
+    geo.rotateX(-Math.PI / 2);   // shape in x/z, extruded up
+    // uv for the top: world -> image
+    const uv = geo.attributes.uv, pos = geo.attributes.position;
+    for (let k = 0; k < pos.count; k++) uv.setXY(k, (pos.getX(k) + W / 2) / W, 1 - (pos.getZ(k) + H / 2) / H);
+    const m = new THREE.Mesh(geo, [topM, side]); m.castShadow = m.receiveShadow = true; scene.add(m);
+  }
+  // relief: a heightfield on top of the slab, only over the land
+  if (relief) {
+    const st = 2, nx = Math.floor(W / st), nz = Math.floor(H / st);
+    const pos = [], uvs = [], idx = [], ok = [];
+    for (let j = 0; j <= nz; j++) for (let i = 0; i <= nx; i++) {
+      const px = i * st, py = j * st, inn = inside(px, py);
+      ok.push(inn);
+      const e = inn ? edgeK(px, py) : 0;
+      pos.push(X(px), T + 4 + hm(px, py) * 255 * RELIEF * e + 1.6 * e - 0.6, Z(py)); uvs.push(px / W, 1 - py / H);
+    }
+    const V = (i, j) => j * (nx + 1) + i;
+    for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) {
+      const a = V(i, j), b = V(i + 1, j), c = V(i, j + 1), d = V(i + 1, j + 1);
+      if (ok[a] && ok[b] && ok[c]) idx.push(a, c, b);
+      if (ok[b] && ok[c] && ok[d]) idx.push(b, c, d);
+    }
+    const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2)); geo.setIndex(idx); geo.computeVertexNormals();
+    const m = new THREE.Mesh(geo, topM); m.castShadow = m.receiveShadow = true; scene.add(m);
+  }
+  // terraces: the relief as stacked toy layers (lowland by the rivers, the old-town ridge, the southern hills)
+  const TH = o.tierH ?? 10;
+  const tierOf = (x, y) => { const v = hm(x, y) * 260; return (S.tiers ?? []).filter((t) => v > t.lvl + 4).length; };
+  if (o.tiers) {
+    (S.tiers ?? []).forEach((t, k) => {
+      const sideK = new THREE.MeshStandardMaterial({ color: mix(scr, '#151413', 0.16 + k * 0.04), roughness: 0.75 });
+      for (const poly of t.polys) {
+        const sh = new THREE.Shape(poly[0].map(([x, y]) => new THREE.Vector2(X(x), -Z(y))));
+        for (const hole of poly.slice(1)) sh.holes.push(new THREE.Path(hole.map(([x, y]) => new THREE.Vector2(X(x), -Z(y)))));
+        const geo = new THREE.ExtrudeGeometry(sh, { depth: TH - 2, bevelEnabled: true, bevelThickness: 1.5, bevelSize: 1.5, bevelSegments: 2, curveSegments: 4 });
+        geo.rotateX(-Math.PI / 2);
+        const uv = geo.attributes.uv, pos = geo.attributes.position;
+        for (let q = 0; q < pos.count; q++) uv.setXY(q, (pos.getX(q) + W / 2) / W, 1 - (pos.getZ(q) + H / 2) / H);
+        const m = new THREE.Mesh(geo, [topM, sideK]); m.position.y = T + 4 + k * TH; m.castShadow = m.receiveShadow = true; scene.add(m);
+      }
+    });
+  }
+  for (const l of decals) {
+    const k = tierOfL(l.x, l.y), c = document.createElement('canvas'), sc = 4;
+    c.width = Math.ceil((l.w + 8) * sc); c.height = Math.ceil((l.fs + 8) * sc);
+    const x = c.getContext('2d'); x.scale(sc, sc); x.font = `650 ${l.fs}px "Inter Tight"`; x.letterSpacing = '-0.3px';
+    x.fillStyle = o.ink ?? 'rgba(21,20,19,.8)'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(l.text, (l.w + 8) / 2, (l.fs + 8) / 2);
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8;
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(l.w + 8, l.fs + 8), new THREE.MeshStandardMaterial({ map: t, transparent: true, roughness: 0.9, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 }));
+    m.rotation.x = -Math.PI / 2; m.position.set(X(l.x), T + 4 + k * TH + 0.6, Z(l.y)); m.receiveShadow = true; scene.add(m);
+  }
+  // towers: toy blocks, height exaggerated, white with a cap
+  if (towers) {
+    const pxm = o.pxm ?? 0.06, ex = o.towerEx ?? 6.5;
+    const body = new THREE.MeshPhysicalMaterial({ color: 0xFFFFFF, roughness: 0.3, clearcoat: 0.8, clearcoatRoughness: 0.25 });
+    const rr = (w, d, r) => { const s = new THREE.Shape(); s.moveTo(-w / 2 + r, -d / 2); s.lineTo(w / 2 - r, -d / 2); s.quadraticCurveTo(w / 2, -d / 2, w / 2, -d / 2 + r); s.lineTo(w / 2, d / 2 - r); s.quadraticCurveTo(w / 2, d / 2, w / 2 - r, d / 2); s.lineTo(-w / 2 + r, d / 2); s.quadraticCurveTo(-w / 2, d / 2, -w / 2, d / 2 - r); s.lineTo(-w / 2, -d / 2 + r); s.quadraticCurveTo(-w / 2, -d / 2, -w / 2 + r, -d / 2); return s; };
+    for (const t of S.towers) {
+      const h = t.h * pxm * ex, w = 13 + Math.min(8, t.h / 25);
+      const base = T + 4 + (o.tiers ? tierOf(t.x, t.y) * TH : relief ? hm(t.x, t.y) * 255 * RELIEF * edgeK(t.x, t.y) : 0);
+      const geo = new THREE.ExtrudeGeometry(rr(w, w * 0.78, 3.2), { depth: h, bevelEnabled: true, bevelThickness: 2.4, bevelSize: 2, bevelSegments: 3 });
+      geo.rotateX(-Math.PI / 2);
+      const b = new THREE.Mesh(geo, body); b.position.set(X(t.x), base, Z(t.y)); b.castShadow = b.receiveShadow = true; scene.add(b);
+    }
+  }
+  // toy houses where people live: blocks in the dense city, houses with roofs at the edges; none on the names
+  if (o.houses) {
+    let seed = 7; const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+    const ps = S.hexes.map((h) => h.p).sort((a, b) => a - b), q = (f) => ps[Math.floor(f * (ps.length - 1))];
+    const c1 = q(0.25), c2 = q(0.6), c3 = q(0.85);
+    const white = new THREE.MeshPhysicalMaterial({ color: 0xFFFFFF, roughness: 0.4, clearcoat: 0.5, clearcoatRoughness: 0.3 });
+    const roofM = new THREE.MeshStandardMaterial({ color: mix(scr, '#151413', 0.42), roughness: 0.6 });
+    const rimM = new THREE.MeshStandardMaterial({ color: mix(scr, '#151413', 0.3), roughness: 0.6 });
+    const prism = (w, d, h) => { const sh = new THREE.Shape([new THREE.Vector2(-w / 2 - 0.8, 0), new THREE.Vector2(w / 2 + 0.8, 0), new THREE.Vector2(0, h)]); const g2 = new THREE.ExtrudeGeometry(sh, { depth: d + 1, bevelEnabled: false }); g2.translate(0, 0, -(d + 1) / 2); return g2; };
+    const free = (x, y) => !boxes.slice(o.towers ? S.towers.length : 0).some((c) => x > c[0] - 7 && x < c[2] + 7 && y > c[1] - 6 && y < c[3] + 20);
+    const top = T + 4;
+    for (const hx of S.hexes) {
+      if (hx.p < c1 * 0.5) continue;
+      const k = hx.p > c3 ? 3 : hx.p > c2 ? 2 : hx.p > c1 ? 1 : 0;
+      const c = hx.b.reduce((a, p) => [a[0] + p[0] / hx.b.length, a[1] + p[1] / hx.b.length], [0, 0]);
+      const SPOTS = [[[0, 0]], [[-6, -3], [6, 4]], [[-7, -4], [7, -4], [0, 6]], [[-7, -5], [7, -5], [-7, 6], [7, 6]]];
+      const spots = SPOTS[[0, 1, 2, 3][k]];
+      for (const [sx, sy] of spots) {
+        const x = c[0] + sx * 1.15 + (rnd() - 0.5) * 3, y = c[1] + sy * 1.05 + (rnd() - 0.5) * 3;
+        if (!inside(x, y) || !free(x, y)) continue;
+        const rot = (rnd() - 0.5) * 0.5, grp = new THREE.Group();
+        if (k >= 2) {        // a block: flat roof with a rim
+          const w = 11 + rnd() * 3, d = 8.5, h = (k === 3 ? 16 : 11) + rnd() * 3;
+          const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), white); b.position.y = h / 2; grp.add(b);
+          const r = new THREE.Mesh(new THREE.BoxGeometry(w + 0.6, 1.2, d + 0.6), rimM); r.position.y = h + 0.6; grp.add(r);
+        } else {             // a house with a pitched roof
+          const w = 10, d = 8, h = 7;
+          const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), white); b.position.y = h / 2; grp.add(b);
+          const r = new THREE.Mesh(prism(w, d, 5.5), roofM); r.position.y = h; grp.add(r);
+        }
+        grp.traverse((m) => { m.castShadow = m.receiveShadow = true; });
+        grp.position.set(X(x), top, Z(y)); grp.rotation.y = rot; scene.add(grp);
+      }
+    }
+  }
+  // toy houses where the buildings really are (OSM, one toy per ~180 m cell); trees in parks and forests
+  if (o.real) {
+    let seed = 11; const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+    const white = new THREE.MeshPhysicalMaterial({ color: 0xFFFFFF, roughness: 0.4, clearcoat: 0.5, clearcoatRoughness: 0.3 });
+    const roofM = new THREE.MeshStandardMaterial({ color: mix(scr, '#151413', 0.42), roughness: 0.6 });
+    const rimM = new THREE.MeshStandardMaterial({ color: mix(scr, '#151413', 0.3), roughness: 0.6 });
+    const prism = (w, d, h) => { const sh = new THREE.Shape([new THREE.Vector2(-w / 2 - 0.8, 0), new THREE.Vector2(w / 2 + 0.8, 0), new THREE.Vector2(0, h)]); const g2 = new THREE.ExtrudeGeometry(sh, { depth: d + 1, bevelEnabled: false }); g2.translate(0, 0, -(d + 1) / 2); return g2; };
+    const free = (x, y) => (o.labels === 'signs' ? !anchors.some((l) => Math.hypot(x - l.x, y - l.y) < 9) : o.labels === 'callouts' ? !anchors.some((l) => Math.hypot(x - l.x, y - l.y) < 4) : !boxes.slice(o.towers ? S.towers.length : 0).some((c) => x > c[0] - 5 && x < c[2] + 5 && y > c[1] - 4 && y < c[3] + 16));
+    const top = T + 4, sc = o.houseScale ?? 0.8;
+    const boxG = new THREE.BoxGeometry(1, 1, 1);
+    const sc2 = o.kitScale ?? 0.72;
+    if (o.diorama) {
+      const WARM = ['#FFF3E0', '#F7DFA0', '#F6C9A8', '#EFA98C', '#FFFFFF'], COOL = ['#FFFFFF', '#EDEAE4', '#DCD8D0', '#D9E8F5', '#CFE6D2'], VILLA = ['#FFFFFF', '#FFF3E0', '#F7F0E6'];
+      const R = { stari_grad: [['mid', 9]], savamala_bw: [['sky', 3], ['mid', 3]], vracar: [['mid', 8]], palilula: [['mid', 5], ['high', 2]], zvezdara: [['mid', 4], ['high', 2]], mirijevo: [['high', 5]], vozdovac: [['high', 3], ['mid', 4]],
+        dedinje_senjak: [['low', 6]], banovo_brdo: [['mid', 4], ['low', 3]], rakovica: [['low', 4], ['high', 3]], novi_beograd: [['high', 5], ['sky', 1]], novi_beograd_blokovi: [['high', 6]], bezanija: [['high', 3], ['low', 3]], zemun: [['low', 4], ['mid', 4]], borca: [['low', 7]] };
+      const PAL = { novi_beograd: COOL, novi_beograd_blokovi: COOL, bezanija: COOL, mirijevo: COOL, savamala_bw: COOL, dedinje_senjak: VILLA };
+      const taken = [];
+      const okAt = (x, y, r) => inside(x, y) && inside(x + r, y) && inside(x - r, y) && inside(x, y + r) && !taken.some((t) => Math.hypot(t[0] - x, t[1] - y) < t[2] + r) && !(S.landmarks ?? []).some((l) => Math.hypot(l.x - x, l.y - y) < 22);
+      for (const l of anchors.length ? anchors : S.labels.filter((x) => !x.river)) taken.push([l.x, l.y, 5]);
+      for (const lm of S.landmarks ?? []) { if (!inside(lm.x, lm.y)) continue; const m = landmark(lm.kind, o.lmScale ?? 0.85); m.position.set(X(lm.x), top, Z(lm.y)); m.rotation.y = -0.3; scene.add(m); taken.push([lm.x, lm.y, 16]); }
+      for (const l of S.labels.filter((x) => !x.river)) {
+        const rec = R[l.id]; if (!rec) continue;
+        const list = rec.flatMap(([c, n]) => Array(Math.round(n * (o.dioK ?? 1))).fill(c)).sort(() => rnd() - 0.5); let k = 0;
+        for (let i = 0; i < 400 && k < list.length; i++) {
+          const a = i * 2.399, rad = 12 + Math.sqrt(i) * 6.2, x = l.x + Math.cos(a) * rad, y = l.y + Math.sin(a) * rad * 0.8 + 6;
+          const cls = list[k], r = { low: 6, mid: 8, high: 11, sky: 7 }[cls];
+          if (!okAt(x, y, r)) continue;
+          const v = cls === 'high' ? (rnd() < 0.6 ? 0 : 1) : Math.floor(rnd() * 3);
+          const hh = house(cls, v, rnd, o.dioScale ?? 0.95, PAL[l.id] ?? WARM); hh.position.set(X(x), top, Z(y)); hh.rotation.y = -0.35 + (rnd() - 0.5) * 0.25; scene.add(hh);
+          taken.push([x, y, r]); k++;
+        }
+      }
+    }
+
+    const towersAt = (o.kit ? S.towers : []).map((t) => ({ ...t, cls: t.h >= 100 ? 'sky' : 'high' }));
+    for (const t of (o.diorama ? [] : towersAt)) {
+      if (!inside(t.x, t.y)) continue;
+      const hh = house(t.cls, t.cls === 'sky' ? Math.floor(rnd() * 3) : 1, rnd, sc2); hh.position.set(X(t.x), top, Z(t.y)); hh.rotation.y = (rnd() - 0.5) * 0.6; scene.add(hh);
+    }
+    for (const [x0, y0, n, lv] of (o.diorama ? [] : S.bld)) {
+      const x = x0 + (rnd() - 0.5) * 3, y = y0 + (rnd() - 0.5) * 3;
+      if (!inside(x, y) || !free(x, y)) continue;
+      if (towersAt.some((t) => Math.hypot(t.x - x, t.y - y) < 14)) continue;
+      if (o.kit) {
+        const cls = lv >= 8 ? 'high' : lv >= 4 || (lv === 0 && n >= 30) ? 'mid' : 'low';
+        const v = cls === 'high' ? (rnd() < 0.75 ? 0 : 1) : Math.floor(rnd() * 3);
+        const hh = house(cls, v, rnd, sc2); hh.position.set(X(x), top, Z(y)); hh.rotation.y = (o.align ?? 0) + (rnd() - 0.5) * 0.3; scene.add(hh);
+        continue;
+      }
+      const grp = new THREE.Group();
+      const block = lv >= 4 || (lv === 0 && n >= 30);
+      if (block) {
+        const tall = lv >= 9, w = (tall ? 9 : 13 + rnd() * 3) * sc, d = (tall ? 9 : 9) * sc, h = (lv >= 12 ? 26 : tall ? 20 : lv >= 6 ? 13 : 10) * sc + rnd() * 2;
+        const b = new THREE.Mesh(boxG, white); b.scale.set(w, h, d); b.position.y = h / 2; grp.add(b);
+        const r = new THREE.Mesh(boxG, rimM); r.scale.set(w + 0.6, 1.1, d + 0.6); r.position.y = h + 0.55; grp.add(r);
+      } else {
+        const w = 9 * sc, d = 7.5 * sc, h = 6.5 * sc;
+        const b = new THREE.Mesh(boxG, white); b.scale.set(w, h, d); b.position.y = h / 2; grp.add(b);
+        const r = new THREE.Mesh(prism(w, d, 5 * sc), roofM); r.position.y = h; grp.add(r);
+      }
+      grp.traverse((m) => { m.castShadow = m.receiveShadow = true; });
+      grp.position.set(X(x), top, Z(y)); grp.rotation.y = (o.align ?? 0) + (rnd() - 0.5) * 0.25; scene.add(grp);
+    }
+    if (o.trees) {
+      const leaf = new THREE.MeshPhysicalMaterial({ color: 0x5FAE58, roughness: 0.45, clearcoat: 0.4 }), trunk = new THREE.MeshStandardMaterial({ color: 0x8A5A35 });
+      const ballG = new THREE.SphereGeometry(1, 14, 10), stemG = new THREE.CylinderGeometry(0.9, 1.1, 1, 6);
+      const tx = document.createElement('canvas'); tx.width = W; tx.height = H; const tc = tx.getContext('2d'); tc.fillStyle = '#fff';
+      for (const poly of S.green ?? []) { tc.beginPath(); poly[0].forEach(([x, y], i) => (i ? tc.lineTo(x, y) : tc.moveTo(x, y))); tc.closePath(); tc.fill(); }
+      const gm = tc.getImageData(0, 0, W, H).data;
+      for (let y = 4; y < H; y += 13) for (let x = 4 + ((y / 13) % 2) * 6; x < W; x += 13) {
+        const px = x + (rnd() - 0.5) * 6, py = y + (rnd() - 0.5) * 6;
+        if (px < 0 || py < 0 || px >= W || py >= H || gm[((py | 0) * W + (px | 0)) * 4] < 128 || !free(px, py) || rnd() < 0.25) continue;
+        const r = 3.4 + rnd() * 1.6, t = new THREE.Group();
+        const st = new THREE.Mesh(stemG, trunk); st.scale.set(1, 3, 1); st.position.y = 1.5; t.add(st);
+        const b = new THREE.Mesh(ballG, leaf); b.scale.set(r, r * 1.1, r); b.position.y = 3 + r; t.add(b);
+        t.traverse((m) => { m.castShadow = true; }); t.position.set(X(px), top, Z(py)); scene.add(t);
+      }
+    }
+  }
+  if (o.labels === 'signs') {
+    const post = new THREE.MeshStandardMaterial({ color: 0x151413, roughness: 0.5 });
+    for (const l of anchors) {
+      const fs = 20, sc = 4, c = document.createElement('canvas'), x = c.getContext('2d');
+      x.font = `650 ${fs}px "Inter Tight"`; const w = x.measureText(l.text).width + 24, h = fs + 14;
+      c.width = w * sc; c.height = h * sc; const x2 = c.getContext('2d'); x2.scale(sc, sc);
+      x2.fillStyle = o.signFill ?? '#F2E33A'; x2.beginPath(); x2.roundRect(0, 0, w, h, h / 2); x2.fill(); x2.strokeStyle = '#151413'; x2.lineWidth = 2; x2.beginPath(); x2.roundRect(1, 1, w - 2, h - 2, h / 2 - 1); x2.stroke();
+      x2.font = `650 ${fs}px "Inter Tight"`; x2.fillStyle = '#151413'; x2.textAlign = 'center'; x2.textBaseline = 'middle'; x2.fillText(l.text, w / 2, h / 2 + 1);
+      const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8;
+      const k = 0.62, ph = 34, sign = new THREE.Mesh(new THREE.PlaneGeometry(w * k, h * k), new THREE.MeshBasicMaterial({ map: t, transparent: true }));
+      const g3 = new THREE.Group(); g3.position.set(X(l.x), T + 4, Z(l.y));
+      const p3 = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.7, ph, 6), post); p3.position.y = ph / 2; p3.castShadow = true; g3.add(p3);
+      sign.position.y = ph + h * k / 2 - 1; g3.add(sign);
+      const back = new THREE.Mesh(new THREE.PlaneGeometry(w * k, h * k), new THREE.MeshBasicMaterial({ color: 0x151413, transparent: true, opacity: 0 })); g3.add(back);
+      g3.userData.sign = sign; scene.add(g3); (window.signs ??= []).push(g3);
+    }
+  }
+  // city blocks: raised by their buildings, flat where nobody lives; colour by height class
+  if (o.blocks) {
+    const C = { low: '#FFF3E0', mid: '#F6C9A8', high: '#F2F0EA', tall: '#DDE6F2' };
+    const mats = {}; const M = (c, k) => (mats[c + k] ??= new THREE.MeshStandardMaterial({ color: k ? mix(c, '#151413', 0.18) : c, roughness: 0.75 }));
+    for (const b of S.blocks ?? []) {
+      if (b.d < (o.minD ?? 1.2)) continue;
+      const ar = Math.abs(b.p[0].reduce((a, [x, y], i, r) => { const [x2, y2] = r[(i + 1) % r.length]; return a + x * y2 - x2 * y; }, 0) / 2);
+      if (ar > (o.bigA ?? 1800) && b.d < (o.bigD ?? 8)) continue;   // fields with a few houses stay flat land
+      const cls = b.lv >= 12 ? 'tall' : b.lv >= 7 ? 'high' : b.lv >= 4 ? 'mid' : 'low';
+      const hgt = { low: 2.2, mid: 4.5, high: 7.5, tall: 11 }[cls] * (o.blockK ?? 1);
+      const sh = new THREE.Shape(b.p[0].map(([x, y]) => new THREE.Vector2(X(x), -Z(y))));
+      const geo = new THREE.ExtrudeGeometry(sh, { depth: hgt, bevelEnabled: true, bevelThickness: 0.6, bevelSize: 0.6, bevelSegments: 2, curveSegments: 3 });
+      geo.rotateX(-Math.PI / 2);
+      const m = new THREE.Mesh(geo, [M(C[cls], 0), M(C[cls], 1)]); m.position.y = T + 4; m.castShadow = m.receiveShadow = true; scene.add(m);
+    }
+    if (!o.diorama) for (const lm of S.landmarks ?? []) { if (!inside(lm.x, lm.y)) continue; const m = landmark(lm.kind, o.lmScale ?? 0.85); m.position.set(X(lm.x), T + 4, Z(lm.y)); m.rotation.y = -0.3; scene.add(m); }
+  }
+  // district borders as memory walls: a bright line on the ground, a light wall that fades upwards, scan bands and a sweep running along
+  const wallMats = [];
+  if (o.walls) {
+    const wh = o.wallH ?? 18, y0 = T + 4;
+    const mk = () => new THREE.ShaderMaterial({
+      transparent: true, depthWrite: false, side: THREE.DoubleSide,
+      uniforms: { uTime: { value: 0 }, uA: { value: o.wallOpacity ?? 0.9 } },
+      vertexShader: 'varying vec2 vUv; attribute vec2 uv2; void main(){ vUv = uv2; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+      fragmentShader: `varying vec2 vUv; uniform float uTime; uniform float uA;
+        void main(){
+          float y = vUv.y, u = vUv.x;
+          float fade = pow(1.0 - y, 1.8);
+          float scan = 0.5 + 0.5 * sin(y * 42.0 - uTime * 5.0);
+          float cells = 0.75 + 0.25 * step(0.5, fract(u * 0.18 + floor(y * 6.0) * 0.5));
+          float sw = fract(u * 0.004 - uTime * 0.35); float sweep = smoothstep(0.0, 0.06, sw) * (1.0 - smoothstep(0.06, 0.2, sw));
+          float base = smoothstep(0.12, 0.0, y);
+          float shim = 0.5 + 0.5 * sin(u * 0.03 + y * 3.0 + uTime * 1.6);
+          vec3 deep = vec3(0.16, 0.55, 1.0), pale = vec3(0.78, 0.95, 1.0);
+          vec3 col = mix(deep, pale, clamp(y * 0.9 + 0.35 * shim + sweep, 0.0, 1.0));
+          float a = fade * (0.30 + 0.30 * scan) * cells + sweep * fade * 0.6 + base * 0.95;
+          gl_FragColor = vec4(mix(col, vec3(1.0), base * 0.6), clamp(a * uA, 0.0, 0.95));
+        }` });
+    for (const ln of S.borders ?? []) {
+      const pos = [], uv = [], idx = []; let dist = 0;
+      ln.forEach(([x, y], i) => { if (i) dist += Math.hypot(x - ln[i - 1][0], y - ln[i - 1][1]); pos.push(X(x), y0, Z(y), X(x), y0 + wh, Z(y)); uv.push(dist, 0, dist, 1); if (i) { const k = i * 2; idx.push(k - 2, k - 1, k, k - 1, k + 1, k); } });
+      const g2 = new THREE.BufferGeometry(); g2.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g2.setAttribute('uv2', new THREE.Float32BufferAttribute(uv, 2)); g2.setIndex(idx);
+      const mat = mk(); wallMats.push(mat); const m = new THREE.Mesh(g2, mat); m.renderOrder = 5; scene.add(m);
+    }
+  }
+  // camera
+  const tilt = (o.tilt ?? 90) * Math.PI / 180, yaw = (o.yaw ?? 0) * Math.PI / 180, dist = o.dist ?? 2600;
+  let cam;
+  if (o.ortho) {   // the app map: an orthographic camera fitted to the land, so lon/lat -> pixel is an exact affine map
+    cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 1, 20000);
+    cam.position.set(Math.sin(yaw) * Math.cos(tilt) * dist, Math.sin(tilt) * dist, Math.cos(yaw) * Math.cos(tilt) * dist); cam.lookAt(0, 0, 0); cam.updateMatrixWorld();
+    const pts = [];
+    for (const poly of S.land) for (const [x, y] of poly[0]) for (const hY of [0, T + 4 + (o.topH ?? 26)]) pts.push(new THREE.Vector3(X(x), hY, Z(y)));
+    const inv = cam.matrixWorldInverse, v = pts.map((p) => p.clone().applyMatrix4(inv));
+    let [l, r, b, t] = [Math.min(...v.map((p) => p.x)), Math.max(...v.map((p) => p.x)), Math.min(...v.map((p) => p.y)), Math.max(...v.map((p) => p.y))];
+    const m = o.margin ?? 24; l -= m; r += m; b -= m; t += m + (o.topExtra ?? 40);
+    Object.assign(cam, { left: l, right: r, bottom: b, top: t }); cam.updateProjectionMatrix();
+    out[0] = o.width ?? 2000; out[1] = Math.round(out[0] * (t - b) / (r - l));
+    R.setSize(out[0], out[1]);
+  } else {
+    cam = new THREE.PerspectiveCamera(o.fov ?? 24, out[0] / out[1], 10, 10000);
+    cam.position.set(Math.sin(yaw) * Math.cos(tilt) * dist, Math.sin(tilt) * dist, Math.cos(yaw) * Math.cos(tilt) * dist);
+    cam.lookAt(0, o.lookY ?? 20, o.lookZ ?? 0);
+  }
+  for (const g3 of window.signs ?? []) { g3.userData.sign.quaternion.copy(cam.quaternion); g3.userData.sign.parent.worldToLocal; }
+  if (o.times) {
+    const frames = [];
+    for (const tm of o.times) {
+      wallMats.forEach((m) => { m.uniforms.uTime.value = tm; }); R.render(scene, cam);
+      const f = document.createElement('canvas'); f.width = out[0]; f.height = out[1]; const fx = f.getContext('2d');
+      if (o.bg) { fx.fillStyle = o.bg; fx.fillRect(0, 0, out[0], out[1]); }
+      fx.drawImage(R.domElement, 0, 0); frames.push(f.toDataURL('image/jpeg', 0.9));
+    }
+    return frames;
+  }
+  wallMats.forEach((m) => { m.uniforms.uTime.value = o.time ?? 1.3; });
+  R.render(scene, cam);
+  // river names: flat on the water, projected
+  const c2 = document.createElement('canvas'); c2.width = out[0]; c2.height = out[1]; const x2 = c2.getContext('2d');
+  if (o.bg) { x2.fillStyle = o.bg; x2.fillRect(0, 0, out[0], out[1]); x2.fillStyle = 'rgba(21,20,19,.08)'; for (let y = 9; y < out[1]; y += 18) for (let x = 9; x < out[0]; x += 18) { x2.beginPath(); x2.arc(x, y, 1.1, 0, 7); x2.fill(); } }
+  x2.drawImage(R.domElement, 0, 0);
+  if (o.labels === 'callouts') {      // names in the water around the city, a thin line to a dot on the district
+    const pts = anchors.map((l) => { const v = new THREE.Vector3(X(l.x), T + 4, Z(l.y)).project(cam); return { ...l, sx: (v.x + 1) / 2 * out[0], sy: (1 - v.y) / 2 * out[1] }; });
+    const land2 = (() => { const v = S.land.flat(2).map(([x, y]) => new THREE.Vector3(X(x), T + 4, Z(y)).project(cam)); const xs = v.map((p) => (p.x + 1) / 2 * out[0]); return [Math.min(...xs), Math.max(...xs)]; })();
+    const cx = (land2[0] + land2[1]) / 2;
+    for (const side of ['L', 'R']) {
+      const col = pts.filter((p) => (side === 'L' ? p.sx < cx : p.sx >= cx)).sort((a, b) => a.sy - b.sy);
+      const gap = 34; let lastY = -1e9;
+      for (const p of col) { p.ty = Math.max(p.sy, lastY + gap); lastY = p.ty; }
+      x2.font = '650 21px "Inter Tight"'; x2.textBaseline = 'middle';
+      for (const p of col) {
+        const tx = side === 'L' ? land2[0] - 26 : land2[1] + 26;
+        x2.strokeStyle = 'rgba(21,20,19,.55)'; x2.lineWidth = 1.4; x2.beginPath(); x2.moveTo(p.sx, p.sy); x2.lineTo(side === 'L' ? tx + 8 : tx - 8, p.ty); x2.stroke();
+        x2.fillStyle = '#151413'; x2.beginPath(); x2.arc(p.sx, p.sy, 3.4, 0, 7); x2.fill(); x2.fillStyle = '#fff'; x2.beginPath(); x2.arc(p.sx, p.sy, 1.4, 0, 7); x2.fill();
+        x2.fillStyle = '#151413'; x2.textAlign = side === 'L' ? 'right' : 'left'; x2.fillText(p.text, tx, p.ty);
+      }
+    }
+  }
+  if (o.export) {    // the picture without words + where things are, for the app (it draws the signs and the prices itself)
+    const scr = (x, y, h = T + 4) => { const v = new THREE.Vector3(X(x), h, Z(y)).project(cam); return [Math.round((v.x + 1) / 2 * out[0] * 10) / 10, Math.round((1 - v.y) / 2 * out[1] * 10) / 10]; };
+    const F = S.frame, px = (lon, lat) => [(lon - F.west) / (F.east - F.west) * W, (F.north - lat) / (F.north - F.south) * H];
+    const ll = [[F.west, F.north], [F.east, F.north], [F.west, F.south]].map(([lo, la]) => ({ lo, la, s: scr(...px(lo, la)) }));
+    const [p0, p1, p2] = ll, dlo = p1.lo - p0.lo, dla = p2.la - p0.la;
+    const affine = [(p1.s[0] - p0.s[0]) / dlo, (p2.s[0] - p0.s[0]) / dla, 0, (p1.s[1] - p0.s[1]) / dlo, (p2.s[1] - p0.s[1]) / dla, 0];
+    affine[2] = p0.s[0] - affine[0] * p0.lo - affine[1] * p0.la; affine[5] = p0.s[1] - affine[3] * p0.lo - affine[4] * p0.la;
+    const areas = Object.fromEntries(S.labels.filter((l) => !l.river).map((l) => [l.id, scr(l.x, l.y)]));
+    const rivers = S.labels.filter((l) => l.river).map((l) => ({ ru: l.text, en: l.en ?? l.text, xy: scr(l.x, l.y, 0), rot: l.rot ?? 0 }));
+    // district borders for the live walls the app draws: base line in pixels + how many pixels up a wall of WH world units goes
+    const WH = o.wallH ?? 64, up = scr(0, 0)[1] - scr(0, 0, T + 4 + WH)[1];
+    const walls = { h: +up.toFixed(1), lines: (S.borders ?? []).map((ln) => ln.map(([x, y]) => scr(x, y))) };
+    return { png: R.domElement.toDataURL('image/png'), meta: { v: 2, width: out[0], height: out[1], affine: affine.map((x) => +x.toFixed(4)), areas, rivers, walls } };
+  }
+  for (const l of S.labels.filter((l) => l.river)) {
+    const v = new THREE.Vector3(X(l.x), 0, Z(l.y)).project(cam), sx = (v.x + 1) / 2 * out[0], sy = (1 - v.y) / 2 * out[1];
+    x2.save(); x2.translate(sx, sy); x2.rotate((l.rot ?? 0) * Math.PI / 180); x2.font = 'italic 600 22px "Inter Tight"'; x2.fillStyle = o.riverInk ?? 'rgba(21,20,19,.55)'; x2.textAlign = 'center'; x2.fillText(l.text, 0, 0); x2.restore();
+  }
+  return c2.toDataURL('image/png');
+};
+window.ready = true;
+</script></body></html>

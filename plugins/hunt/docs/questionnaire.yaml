@@ -1,0 +1,151 @@
+# Hunt questionnaire.
+# profile: asked once per hunter, reused in every search.
+# brief: asked for each search; region packs add their own brief_questions on top.
+# The agent asks with buttons (AskUserQuestion) where options exist, one small group at a time.
+# privacy: public = may appear in messages to landlords; agent = only the agent uses it;
+#          ask = share only after an explicit yes for that contact; never = do not store.
+
+profile:
+  - id: intro_name
+    text: {en: "How should I introduce you to landlords?", ru: "Как тебя представлять владельцам?"}
+    type: text
+    example: "Alex / Alex Kim"
+    privacy: public
+  - id: languages
+    text: {en: "Which languages can you read and write?", ru: "На каких языках ты читаешь и пишешь?"}
+    type: multi
+    options: [en, ru, kk, th, id, tr, es, de, fr]
+    privacy: agent
+  - id: phone
+    text: {en: "Phone number for bookings and viewings", ru: "Телефон для записи на просмотры"}
+    type: phone
+    privacy: ask
+  - id: phone_policy
+    text: {en: "When can I give your phone number?", ru: "Когда можно давать твой номер?"}
+    type: single
+    options:
+      - {id: never, text: {en: "Never, I call myself", ru: "Никогда, звоню сам"}}
+      - {id: ask, text: {en: "Ask me each time", ru: "Спрашивать каждый раз"}}
+      - {id: agencies, text: {en: "Agencies and booking forms only", ru: "Только агентствам и формам записи"}}
+      - {id: always, text: {en: "Whenever it helps", ru: "Когда нужно"}}
+    privacy: agent
+  - id: email
+    text: {en: "Email for agencies and portals", ru: "Почта для агентств и порталов"}
+    type: email
+    privacy: ask
+  - id: messengers
+    text: {en: "Which accounts will the agent use?", ru: "С каких аккаунтов агент пишет?"}
+    type: channels       # filled by /hunt connect: channel, account label, personal or separate
+    privacy: agent
+  - id: who
+    text: {en: "Who is moving in?", ru: "Кто будет жить?"}
+    type: single
+    options: [alone, couple, friends, family_kids, colleagues]
+    privacy: public
+  - id: legend
+    text: {en: "Anything about you landlords should or should not hear?", ru: "Что владельцам говорить или не говорить о вас?"}
+    type: text
+    example: "say 'two friends', not 'two brothers'; remote work in IT"
+    privacy: agent
+  - id: pets
+    text: {en: "Pets?", ru: "Животные?"}
+    type: text
+    privacy: public
+  - id: smoking
+    text: {en: "Does anyone smoke?", ru: "Кто-то курит?"}
+    type: single
+    options: [no, outside_only, yes]
+    privacy: agent
+  - id: tone
+    text: {en: "Tone of messages", ru: "Тон сообщений"}
+    type: single
+    options:
+      - {id: casual, text: {en: "Casual, short, chat-like", ru: "Разговорно и коротко"}}
+      - {id: polite, text: {en: "Polite and neutral", ru: "Вежливо и нейтрально"}}
+      - {id: formal, text: {en: "Formal", ru: "Официально"}}
+    privacy: agent
+  - id: autonomy
+    text: {en: "What can I send without asking you?", ru: "Что могу отправлять без твоего одобрения?"}
+    type: single
+    options:
+      - {id: ask, text: {en: "Nothing, approve every message", ru: "Ничего, одобряю каждое"}}
+      - {id: routine_auto, text: {en: "Routine: confirming times, 'running late', polite declines", ru: "Рутину: время, «опаздываем», вежливые отказы"}}
+    privacy: agent
+  - id: timezone
+    text: {en: "Your timezone", ru: "Твой часовой пояс"}
+    type: timezone
+    privacy: agent
+  - id: quiet_hours
+    text: {en: "Quiet hours (no notifications)", ru: "Тихие часы (без уведомлений)"}
+    type: text
+    example: "23:00-08:00"
+    privacy: agent
+  - id: passport
+    text: {en: "Passport details", ru: "Паспортные данные"}
+    type: none
+    privacy: never
+    note: "Never asked during onboarding and never stored. Only typed by the person into a contract themselves."
+
+brief:
+  - id: region
+    text: {en: "Where? Country, city, districts", ru: "Где? Страна, город, районы"}
+    type: region         # picked from region packs: country -> city -> districts (multi)
+  - id: anchor
+    text: {en: "Anything you want to be close to? (work, school, beach, coworking)", ru: "К чему нужно быть ближе? (работа, школа, пляж, коворкинг)"}
+    type: text
+  - id: move_in
+    text: {en: "Move-in date", ru: "Дата заезда"}
+    type: date
+  - id: move_in_flex
+    text: {en: "How flexible is the date?", ru: "Насколько гибкая дата?"}
+    type: single
+    options: [exact, plus_minus_3_days, plus_minus_week, flexible]
+  - id: term
+    text: {en: "How long?", ru: "На сколько?"}
+    type: single
+    options: ["1 month", "2-3 months", "3-6 months", "6-12 months", "12+ months"]
+  - id: property_type
+    text: {en: "What kind of place?", ru: "Какое жильё?"}
+    type: multi
+    options: [apartment, condo, house, villa, townhouse, room]
+  - id: bedrooms
+    text: {en: "Bedrooms", ru: "Спальни"}
+    type: multi
+    options: ["studio", "1", "2", "3", "4+"]
+  - id: must_have
+    text: {en: "Must-haves", ru: "Обязательно"}
+    type: text
+  - id: nice_to_have
+    text: {en: "Nice to have", ru: "Желательно"}
+    type: text
+  - id: deal_breakers
+    text: {en: "Definitely not", ru: "Точно нет"}
+    type: text
+    example: "construction nearby, studio layout, dark interiors"
+  - id: budget_said
+    text: {en: "Budget to tell landlords (per month)", ru: "Бюджет, который называем владельцам (в месяц)"}
+    type: money
+  - id: budget_cap
+    text: {en: "Your real maximum (never told to anyone)", ru: "Реальный потолок (никому не называем)"}
+    type: money
+  - id: utilities_in_budget
+    text: {en: "Does the budget include utilities?", ru: "Бюджет со светом и коммуналкой?"}
+    type: single
+    options: [included, excluded, either]
+  - id: payment_terms
+    text: {en: "How can you pay?", ru: "Как готовы платить?"}
+    type: multi
+    options: [monthly, "3 months upfront", "6 months upfront", "12 months upfront"]
+  - id: style
+    text: {en: "Style you like (links or words)", ru: "Какой стиль нравится (ссылки или словами)"}
+    type: text
+  - id: viewing_times
+    text: {en: "When can you go to viewings?", ru: "Когда можете ездить на просмотры?"}
+    type: text
+  - id: transport
+    text: {en: "How do you get around?", ru: "На чём передвигаетесь?"}
+    type: single
+    options: [scooter, car, taxi, public_transport, walking]
+  - id: members
+    text: {en: "Who else decides? (I'll invite them to the Telegram group)", ru: "Кто ещё решает? (позову в группу в Telegram)"}
+    type: text

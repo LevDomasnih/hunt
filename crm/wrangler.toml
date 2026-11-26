@@ -1,0 +1,47 @@
+# Fill FILL_ME after `wrangler d1 create hunt` and `wrangler kv namespace create PHOTOS_KV`.
+
+name = "hunt-crm"
+main = "src/index.ts"
+compatibility_date = "2026-10-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "hunt"
+database_id = "FILL_ME"
+migrations_dir = "migrations"
+
+# Photos: Workers KV (free tier, no card). If the search has a Telegram group, the album is also posted there.
+[[kv_namespaces]]
+binding = "PHOTOS_KV"
+id = "FILL_ME"
+
+# (Telegram file_id is used when photos come from the group.)
+# Optional R2 for people who want their own copies:
+# [[r2_buckets]]
+# binding = "PHOTOS"
+# bucket_name = "hunt-photos"
+
+# Every 15 minutes: bot DMs postponed by quiet hours, viewing reminders (60-75 min before), deal-date reminders,
+# the morning digest (08:00 local),
+# "rate it" DMs 60-90 min after a viewing started.
+[triggers]
+crons = ["*/15 * * * *"]
+
+[vars]
+SOURCES_URL = "https://FILL_ME"    # the sources registry; its key is the secret SOURCES_KEY
+PUBLIC_URL = "https://FILL_ME"
+BOT_USERNAME = "FILL_ME"
+
+# Secrets (wrangler secret put):
+#   TG_BOT_TOKEN      Telegram bot token from @BotFather
+#   TG_WEBHOOK_SECRET random string, checked on every webhook call
+#   SETUP_KEY         one-time key to create the first user and agent token
+#   LINK_SECRET       signs private web links
+
+# Mini App (index.html, app.js, app.css) and region art (public/art, made by scripts/copy-art.mjs).
+# Files are served as-is; /app itself goes through the Worker, which returns index.html.
+[assets]
+directory = "./public"
+binding = "ASSETS"
+html_handling = "none"
+not_found_handling = "none"

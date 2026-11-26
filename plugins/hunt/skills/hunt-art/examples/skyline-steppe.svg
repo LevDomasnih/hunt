@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 160" fill="currentColor">
+  <defs><mask id="kz-scene-m"><rect width="360" height="160" fill="#fff"/><polygon points="72,72 82,58 92,66 88,68 84,64 79,70" fill="#444"/><polygon points="106,58 118,36 130,51 126,54 121,49 117,55 112,52" fill="#444"/><polygon points="150,59 158,52 166,63 162,61 158,64 154,60" fill="#444"/><polygon points="277,70 286,60 296,71 291,69 287,72 282,68" fill="#444"/></mask></defs>
+  <circle cx="300" cy="36" r="14" opacity=".2"/>
+  <polygon points="0,160 0,78 22,66 40,72 62,50 80,60 96,54 118,70 140,62 160,74 180,64 200,76 220,60 246,70 270,52 292,62 314,56 336,70 360,64 360,160" opacity=".16"/>
+  <polygon points="0,160 0,104 30,92 54,98 82,58 100,72 118,36 140,62 158,52 186,84 204,76 226,94 252,70 268,80 286,60 312,88 340,78 360,90 360,160" opacity=".42" mask="url(#kz-scene-m)"/>
+  <path d="M0 160 L0 118 C60 108 120 112 180 120 C240 128 300 124 360 114 L360 160 Z" opacity=".22"/>
+  <path d="M0 160 L0 136 C70 128 150 130 220 134 C280 137 320 134 360 130 L360 160 Z" opacity=".38"/>
+  <path d="M222 132 L222 114 C226 100 240 92 254 92 C268 92 282 100 286 114 L286 132 Z M248 132 L248 118 L260 118 L260 132 Z M224 112 C232 106 244 103 254 103 C264 103 276 106 284 112 L284.6 114.5 C276 109 264 106.5 254 106.5 C244 106.5 232 109 223.4 114.5 Z" fill-rule="evenodd"/>
+  <path d="M250 92 L254 86 L258 92 Z"/>
+  <path d="M210 132 h88" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+  <path d="M70 30 q6 -5 12 0 q6 -5 12 0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity=".55"/>
+  <path d="M40 146 l3 -6 l3 6 M120 150 l3 -6 l3 6 M170 144 l3 -6 l3 6 M320 148 l3 -6 l3 6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" opacity=".55"/>
+</svg>

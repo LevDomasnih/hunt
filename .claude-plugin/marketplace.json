@@ -1,0 +1,17 @@
+{
+  "name": "hunt",
+  "owner": {
+    "name": "Hunt contributors"
+  },
+  "metadata": {
+    "description": "Hunt: an assistant for friends who rent a home abroad."
+  },
+  "plugins": [
+    {
+      "name": "hunt",
+      "source": "./plugins/hunt",
+      "description": "Listings, messages, viewings, votes and shared money for a home abroad.",
+      "category": "productivity"
+    }
+  ]
+}

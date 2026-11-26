@@ -1,0 +1,12 @@
+verified: 2026-11
+areas:
+  north:
+    name: {en: "North", ru: "Север"}
+    city: alpha
+    districts: [north]
+    scores: {surf: 4, quiet: 5, no_traffic: 4, food: 2, coworking: 1, nightlife: 1}
+    vibe: {en: "Quiet.", ru: "Тихо."}
+  far:
+    name: {en: "Far", ru: "Далеко"}
+    city: beta
+    districts: []

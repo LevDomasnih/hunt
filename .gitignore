@@ -1,0 +1,11 @@
+.env
+.env.*
+.dev.vars*
+*.session*
+*.sqlite*
+/data/
+.wrangler/
+node_modules/
+__pycache__/
+*.pyc
+.DS_Store

@@ -1,0 +1,148 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>WhatsApp</title>
+<!--
+  Offline stand-in for the WhatsApp Web DOM pieces hunt_browser relies on:
+  #pane-side chat list rows, #main header, #main [role=row] message rows with data-id /
+  .message-out / data-pre-plain-text / span.selectable-text / data-icon ticks, and the footer
+  contenteditable composer that accepts a paste and sends on Enter.
+  Tests configure it through window.__WA (set by page.add_init_script before load):
+    header      title shown in #main header (default: +<phone> from ?phone=)
+    rows        initial messages [{dir:'in'|'out', text}]
+    older       how many older messages appear when scrolled to the top (5 per scroll)
+    sendMode    'ok' | 'reload' (page reloads right after the send) | 'noop' (Enter ignored) | 'pending'
+    invalid     true → "Phone number shared via url is invalid." dialog, no chat
+    loggedOut   true → QR login screen
+    images      number of photo messages (blob thumbnails; click opens a bigger viewer image)
+    chats       chat list rows [{name, preview, unread, missed}]
+-->
+<style>
+  body { margin: 0; font: 14px sans-serif; }
+  #app { display: flex; height: 100vh; }
+  #side { width: 320px; border-right: 1px solid #ccc; }
+  #pane-side { height: 90vh; overflow-y: auto; }
+  #main { flex: 1; display: flex; flex-direction: column; }
+  #main header { height: 50px; border-bottom: 1px solid #ccc; }
+  #scroller { flex: 1; overflow-y: auto; height: 600px; }
+  [role="row"] { min-height: 40px; }
+  .message-out { text-align: right; }
+  #viewer { position: fixed; inset: 0; background: rgba(0,0,0,.8); }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+(async () => {
+  const cfg = Object.assign({rows: [], older: 0, sendMode: 'ok', images: 0, chats: []}, window.__WA || {});
+  const app = document.getElementById('app');
+  const params = new URLSearchParams(location.search);
+  const phone = params.get('phone');
+  const esc = s => s.replace(/[&<>]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;'}[c]));
+
+  if (cfg.loggedOut) {
+    app.innerHTML = '<div data-ref="https://wa.me/settings/linked_devices#fixture"><canvas aria-label="Scan this QR code to link a device" width="228" height="228"></canvas></div>' +
+      '<div role="button" data-testid="link_device_qr_phone_number_shortcut_link">Link with phone number instead.</div>';
+    const c = app.querySelector('canvas').getContext('2d'); c.fillRect(20, 20, 60, 60);
+    return;
+  }
+
+  const sent = JSON.parse(sessionStorage.getItem('sent') || '[]');
+  let seq = 0;
+  const rowHtml = (m) => {
+    const out = m.dir === 'out';
+    const id = (out ? 'true_' : 'false_') + (phone || 'x') + '@c.us_' + (m.id || ('M' + (++seq)));
+    const pre = `[10:${String(seq % 60).padStart(2, '0')}, 11/19/2026] ${out ? 'Me' : 'Landlord'}: `;
+    const tick = out ? `<span data-icon="${m.pending ? 'msg-time' : 'msg-dblcheck'}"></span>` : '';
+    const body = m.html || `<div class="copyable-text" data-pre-plain-text="${pre}"><span dir="ltr" class="selectable-text copyable-text"><span>${esc(m.text).replace(/\n/g, '<br>')}</span></span></div>`;
+    return `<div role="row"><div data-id="${id}" class="${out ? 'message-out' : 'message-in'}">${body}<span>10:00</span>${tick}</div></div>`;
+  };
+
+  app.innerHTML = `
+    <div id="side"><div contenteditable="true" role="textbox" aria-label="Search input textbox"></div>
+      <div id="pane-side"></div></div>
+    <div id="main-wrap"></div>`;
+  const pane = document.getElementById('pane-side');
+  pane.innerHTML = cfg.chats.map(c => `
+    <div role="listitem"><div><span title="${c.name}">${c.name}</span><div>10:21</div></div>
+      <div><span title="${c.preview}">${c.missed ? '<span data-icon="miss"></span>' : ''}${c.preview}</span>
+      ${c.unread ? `<span aria-label="${c.unread} unread messages">${c.unread}</span>` : ''}</div></div>`).join('');
+
+  if (!phone) return;
+  if (cfg.invalid) {
+    document.body.insertAdjacentHTML('beforeend', '<div data-animate-modal-popup="true" role="dialog">Phone number shared via url is invalid.<div role="button">OK</div></div>');
+    return;
+  }
+  // WhatsApp opens the chat a moment after the app shell.
+  await new Promise(r => setTimeout(r, 300));
+  const header = cfg.header || ('+' + phone.replace(/^(\d{2})(\d{3})(\d{4})(\d+)$/, '$1 $2-$3-$4'));
+  document.getElementById('main-wrap').outerHTML = `
+    <div id="main">
+      <header><div><span dir="auto" title="${header}">${header}</span></div><div>click here for contact info</div></header>
+      <div id="scroller"><div role="application" id="list"></div></div>
+      <footer><div contenteditable="true" role="textbox" aria-label="Type a message" id="box"></div></footer>
+    </div>`;
+  const list = document.getElementById('list');
+  const scroller = document.getElementById('scroller');
+  let older = cfg.older;
+  const all = cfg.rows.concat(sent);
+  list.innerHTML = all.map(rowHtml).join('');
+  if (!older) list.insertAdjacentHTML('afterbegin', '<div role="row"><span>Messages and calls are end-to-end encrypted. No one outside of this chat can read them.</span></div>');
+
+  // photo messages: blob thumbnails, click → viewer with a bigger blob image
+  const blobOf = async (w, h, color) => {
+    const c = document.createElement('canvas'); c.width = w; c.height = h;
+    const g = c.getContext('2d'); g.fillStyle = color; g.fillRect(0, 0, w, h);
+    return URL.createObjectURL(await new Promise(r => c.toBlob(r, 'image/png')));
+  };
+  for (let i = 0; i < cfg.images; i++) {
+    const thumb = await blobOf(100, 80, '#3a7');
+    const big = await blobOf(1200, 900, '#a37');
+    list.insertAdjacentHTML('beforeend', rowHtml({dir: 'in', html: `<img src="${thumb}" width="100" height="80" data-big="${big}"><div class="copyable-text" data-pre-plain-text="[10:1${i}, 11/19/2026] Landlord: "><span class="selectable-text"><span>photo ${i + 1}</span></span></div>`}));
+  }
+  list.addEventListener('click', e => {
+    const img = e.target.closest('img[data-big]');
+    if (!img) return;
+    document.body.insertAdjacentHTML('beforeend', `<div id="viewer"><img src="${img.dataset.big}"></div>`);
+  });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') document.getElementById('viewer')?.remove(); });
+
+  scroller.addEventListener('scroll', () => {
+    if (scroller.scrollTop > 0 || older <= 0) return;
+    const batch = [];
+    for (let i = 0; i < 5 && older > 0; i++, older--) batch.unshift({dir: older % 2 ? 'in' : 'out', text: 'older message ' + older});
+    list.insertAdjacentHTML('afterbegin', batch.map(rowHtml).join(''));
+    if (older <= 0) list.insertAdjacentHTML('afterbegin', '<div role="row"><span>Messages and calls are end-to-end encrypted.</span></div>');
+    scroller.scrollTop = 50;
+  });
+  list.style.minHeight = '1600px';
+  scroller.scrollTop = scroller.scrollHeight;  // a chat opens at the newest message
+
+  const box = document.getElementById('box');
+  box.addEventListener('paste', e => {
+    e.preventDefault();
+    const t = e.clipboardData.getData('text/plain');
+    box.innerHTML = '<p>' + esc(t).replace(/\n/g, '<br>') + '</p>';
+  });
+  box.addEventListener('keydown', e => {
+    if (e.key !== 'Enter' || e.shiftKey) return;
+    e.preventDefault();
+    const tmp = document.createElement('div');
+    tmp.innerHTML = box.innerHTML.replace(/<br\s*\/?>/g, '\n');
+    const text = tmp.textContent;
+    if (!text.trim() || cfg.sendMode === 'noop') return;
+    const msg = {dir: 'out', text, id: 'S' + Date.now(), pending: cfg.sendMode === 'pending'};
+    box.innerHTML = '';
+    if (cfg.sendMode === 'reload') {
+      sent.push(msg);
+      sessionStorage.setItem('sent', JSON.stringify(sent));
+      setTimeout(() => location.reload(), 50);
+      return;
+    }
+    list.insertAdjacentHTML('beforeend', rowHtml(msg));
+  });
+})();
+</script>
+</body>
+</html>

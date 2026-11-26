@@ -1,0 +1,16 @@
+{
+  "name": "hunt-sources",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "migrate": "wrangler d1 migrations apply hunt-sources --remote",
+    "deploy": "wrangler deploy",
+    "import": "uv run scripts/import-packs.py",
+    "test": "node scripts/test.mjs"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261119.1",
+    "typescript": "^5.6.0",
+    "wrangler": "^4.165.0"
+  }
+}

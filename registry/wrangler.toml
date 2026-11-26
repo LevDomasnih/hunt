@@ -1,0 +1,11 @@
+# Hunt sources registry (private). Not created yet: fill database_id after `wrangler d1 create hunt-sources`.
+# Secret: wrangler secret put ADMIN_KEY (any long random string)
+name = "hunt-sources"
+main = "src/index.ts"
+compatibility_date = "2026-10-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "hunt-sources"
+database_id = "FILL_ME"
+migrations_dir = "migrations"

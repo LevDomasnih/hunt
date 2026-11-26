@@ -1,0 +1,21 @@
+{
+  "name": "hunt-crm",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "art": "node scripts/copy-art.mjs",
+    "predev": "node scripts/copy-art.mjs",
+    "dev": "wrangler dev",
+    "predeploy": "node scripts/copy-art.mjs --no-demo",
+    "deploy": "wrangler deploy",
+    "migrate": "wrangler d1 migrations apply hunt --remote",
+    "typecheck": "tsc --noEmit",
+    "test:households": "node scripts/test-households.mjs"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261119.1",
+    "typescript": "^5.6.0",
+    "wrangler": "^4.165.0"
+  },
+  "license": "AGPL-3.0-only"
+}

@@ -1,0 +1,51 @@
+# Animal avatars for this search region. One is picked at random per member,
+# unique within a search. bg_* is the soft circle drawn behind the SVG.
+avatars:
+  - slug: owl
+    name: {en: Owl, ru: Сова}
+    bg_light: "#EFE2CF"
+    bg_dark: "#33281D"
+  - slug: fox
+    name: {en: Fox, ru: Лиса}
+    bg_light: "#FBE1CC"
+    bg_dark: "#3D2416"
+  - slug: bear
+    name: {en: Bear, ru: Медведь}
+    bg_light: "#F0E0CF"
+    bg_dark: "#36271B"
+  - slug: raccoon
+    name: {en: Raccoon, ru: Енот}
+    bg_light: "#E3E6EC"
+    bg_dark: "#272A31"
+  - slug: otter
+    name: {en: Otter, ru: Выдра}
+    bg_light: "#D8EBEC"
+    bg_dark: "#173638"
+  - slug: penguin
+    name: {en: Penguin, ru: Пингвин}
+    bg_light: "#D6E7F4"
+    bg_dark: "#2C4A66"
+  - slug: panda
+    name: {en: Panda, ru: Панда}
+    bg_light: "#DCEED6"
+    bg_dark: "#34523A"
+  - slug: rabbit
+    name: {en: Rabbit, ru: Кролик}
+    bg_light: "#F6E2E2"
+    bg_dark: "#3A2526"
+  - slug: koala
+    name: {en: Koala, ru: Коала}
+    bg_light: "#DDEBDB"
+    bg_dark: "#24352A"
+  - slug: hedgehog
+    name: {en: Hedgehog, ru: Ёжик}
+    bg_light: "#F1E7D2"
+    bg_dark: "#352B1E"
+  - slug: whale
+    name: {en: Whale, ru: Кит}
+    bg_light: "#D7E8F5"
+    bg_dark: "#18304A"
+  - slug: parrot
+    name: {en: Parrot, ru: Попугай}
+    bg_light: "#D9EFE3"
+    bg_dark: "#183A2A"

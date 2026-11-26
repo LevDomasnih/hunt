@@ -1,0 +1,308 @@
+# /// script
+# requires-python = ">=3.11"
+# dependencies = ["playwright==1.60.0", "pillow==11.3.0", "pyyaml==6.0.2", "numpy==2.3.3", "shapely==2.1.2", "h3==4.3.1"]
+# ///
+"""Hunt city map: the toy land of one city in 3D — the pack's districts minus rivers, cut into blocks by the real streets and raised
+by their buildings, parks with trees, a few landmarks. The picture has no words: the app draws the district signs, river names and
+prices itself through the affine map in the JSON (lon, lat -> pixel).
+
+    uv run --script citymap.py fetch PACK CITY      OpenStreetMap layers + Kontur population -> ~/.cache/hunt/art/citymap/CITY
+    uv run --script citymap.py build PACK CITY      -> PACK/art/island-CITY.webp + .json (v 2)
+    uv run --script citymap.py all   PACK CITY      both
+
+PACK/art/citymap.yaml (optional) per city: join (close gaps between areas, degrees), extend (bounding boxes [w, s, e, n] where
+populated land joins the city, e.g. a bank of a river), names (short district names), pins (lon, lat of a sign), rivers
+(name_ru, name_en, lon, lat, rotation), labels (id, name_ru, name_en, lon, lat: signs for places that are not pack areas),
+landmarks (kind, name, lon, lat; kinds in citymap/houses.js), country (Kontur id, e.g. serbia), names_en (short English names).
+Data: © OpenStreetMap contributors (ODbL), Kontur Population (CC BY 4.0). Reads public APIs politely: one request at a time, retries.
+"""
+from __future__ import annotations
+
+import argparse, asyncio, base64, csv, glob, gzip, io, json, math, mimetypes, os, re, sqlite3, statistics, sys, time
+import urllib.parse, urllib.request
+from pathlib import Path
+
+import yaml
+
+HERE = Path(__file__).resolve().parent
+CACHE = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "hunt" / "art" / "citymap"
+HOSTS = ["https://overpass-api.de/api/interpreter", "https://overpass.kumi.systems/api/interpreter", "https://overpass.private.coffee/api/interpreter"]
+UA = {"User-Agent": "HuntCityMap/1.0 (+read-only)"}
+
+
+def cfg_of(pack: Path, city: str) -> dict:
+    f = pack / "art" / "citymap.yaml"
+    c = ((yaml.safe_load(f.read_text()) or {}).get(city) or {}) if f.exists() else {}
+    return {"join": 0, "extend": [], "names": {}, "pins": {}, "rivers": [], "landmarks": [], "country": None, **c}
+
+
+def areas_of(pack: Path, city: str):
+    from shapely.geometry import shape
+    gj = json.loads((pack / "districts.geojson").read_text())
+    dy = yaml.safe_load((pack / "districts.yaml").read_text())["areas"]
+    return {f["properties"]["id"]: shape(f["geometry"]).buffer(0) for f in gj["features"] if dy.get(f["properties"]["id"], {}).get("city") == city}, dy
+
+
+# ---------------------------------------------------------------- fetch
+def overpass(body: str, out: Path, ok) -> bool:
+    if out.exists():
+        return True
+    for _ in range(5):
+        for h in HOSTS:
+            try:
+                r = urllib.request.urlopen(urllib.request.Request(h, data=urllib.parse.urlencode({"data": body}).encode(), headers=UA), timeout=280).read()
+                if ok(r):
+                    out.write_bytes(r); print(" ", out.name, f"{len(r) // 1024} KB", flush=True); return True
+            except Exception as e:  # busy mirrors answer 429/504 or close the connection
+                print(" ", out.name, "retry", h.split("/")[2], str(e)[:50], flush=True)
+        time.sleep(30)
+    print(" ", out.name, "FAILED", flush=True)
+    return False
+
+
+def fetch(pack: Path, city: str) -> None:
+    from shapely.geometry import box
+    from shapely.ops import unary_union
+    c = cfg_of(pack, city)
+    areas, _ = areas_of(pack, city)
+    if not areas:
+        sys.exit(f"{pack.name}: no areas with city: {city} in districts.yaml")
+    u = unary_union(list(areas.values()) + [box(*b) for b in c["extend"]])
+    W, S, E, N = u.bounds
+    W, S, E, N = W - .012, S - .012, E + .012, N + .012
+    D = CACHE / city; D.mkdir(parents=True, exist_ok=True)
+    J, CSV = (lambda r: r[:1] == b"{"), (lambda r: r[:1].isdigit())
+    bb = f"{S:.4f},{W:.4f},{N:.4f},{E:.4f}"
+    print(city, bb, flush=True)
+    overpass(f'[out:json][timeout:250];(way["natural"="water"]({bb});relation["natural"="water"]({bb});way["waterway"="riverbank"]({bb});way["natural"="coastline"]({bb}););out geom;', D / "water.json", J)
+    overpass(f'[out:json][timeout:250];(way["leisure"="park"]({bb});way["landuse"="forest"]({bb});way["natural"="wood"]({bb});relation["leisure"="park"]({bb});relation["landuse"="forest"]({bb}););out geom;', D / "green.json", J)
+    overpass(f'[out:json][timeout:250];way["highway"~"^(motorway|trunk|primary|secondary)$"]({bb});out geom;', D / "roads.json", J)
+    overpass(f'[out:json][timeout:250];way["highway"~"^(tertiary|unclassified)$"]({bb});out geom;', D / "roads2.json", J)
+    n = max(2, min(4, math.ceil(max((E - W) * math.cos(math.radians(S)), N - S) / 0.08)))
+    for i in range(n):
+        for j in range(n):
+            t = f"{S + (N - S) * i / n:.4f},{W + (E - W) * j / n:.4f},{S + (N - S) * (i + 1) / n:.4f},{W + (E - W) * (j + 1) / n:.4f}"
+            overpass(f'[out:csv(::lat,::lon,"building:levels","building";false)][timeout:250];way["building"]({t});out center;', D / f"bld-{i}{j}.csv", CSV)
+            overpass(f'[out:json][timeout:250];way["highway"~"^(residential|living_street)$"]({t});out geom;', D / f"res-{i}{j}.json", J)
+    if c["country"] and not (D / "kontur.gpkg").exists():
+        meta = json.loads(urllib.request.urlopen(urllib.request.Request(f"https://data.humdata.org/api/3/action/package_show?id=kontur-population-{c['country']}", headers=UA), timeout=60).read())
+        url = sorted(r["url"] for r in meta["result"]["resources"] if r["url"].endswith(".gpkg.gz"))[-1]
+        (D / "kontur.gpkg").write_bytes(gzip.decompress(urllib.request.urlopen(urllib.request.Request(url, headers=UA), timeout=600).read()))
+        print("  kontur", url.rsplit("/", 1)[1], flush=True)
+    (D / "frame.json").write_text(json.dumps([W, S, E, N]))
+
+
+# ---------------------------------------------------------------- prepare
+def prepare(pack: Path, city: str) -> dict:
+    import h3
+    import numpy as np
+    from PIL import Image, ImageDraw
+    from shapely.geometry import LineString, MultiPolygon, Point, Polygon, box
+    from shapely.ops import polygonize, unary_union
+    from shapely.strtree import STRtree
+    c = cfg_of(pack, city)
+    D = CACHE / city
+    if not (D / "frame.json").exists():
+        sys.exit(f"no data for {city}: run fetch first")
+    areas, dy = areas_of(pack, city)
+    J = lambda f: json.loads((D / f).read_text()) if (D / f).exists() else {"elements": []}
+    POP = []
+    if (D / "kontur.gpkg").exists():
+        FW, FS, FE, FN = json.loads((D / "frame.json").read_text())
+        for cid, p in sqlite3.connect(D / "kontur.gpkg").execute("SELECT h3, population FROM population"):
+            la, lo = h3.cell_to_latlng(cid)
+            if FW < lo < FE and FS < la < FN:
+                POP.append((lo, la, p, cid))
+    land = unary_union([a.buffer(0.0009) for a in areas.values()]).buffer(-0.0006)
+    if c["join"]:
+        land = land.buffer(c["join"]).buffer(-c["join"])
+    for b in c["extend"]:   # populated land inside the box joins the city (400 m cells with > 1500 people)
+        cells = [Polygon([(lo, la) for la, lo in h3.cell_to_boundary(cid)]) for lo, la, p, cid in POP if b[0] < lo < b[2] and b[1] < la < b[3] and p > 1500]
+        if cells:
+            land = unary_union([land, unary_union(cells).buffer(0.002).buffer(-0.0016)])
+    water = []
+    for e in J("water.json")["elements"]:
+        t = e.get("tags", {})
+        if e["type"] == "way" and len(e.get("geometry") or []) > 3 and t.get("natural") != "coastline":
+            pg = Polygon([(q["lon"], q["lat"]) for q in e["geometry"]])
+            if pg.is_valid and (t.get("water") in ("river", "canal", "oxbow", "lake", "reservoir") or t.get("waterway") == "riverbank" or pg.area > 2e-6):
+                water.append(pg)
+        elif e["type"] == "relation":
+            ws = [LineString([(q["lon"], q["lat"]) for q in m["geometry"]]) for m in e.get("members", []) if m.get("role") == "outer" and m.get("geometry")]
+            water += list(polygonize(unary_union(ws)))
+    if water:
+        wu = unary_union([w.buffer(0) for w in water]).buffer(-0.00035).buffer(0.00055)   # rivers and lakes; channels under ~70 m vanish
+        land = land.difference(wu).buffer(0)
+    # the sea: OSM coastlines cut the frame into pieces; pieces with no buildings in them are sea (district outlines often run into it)
+    coast = [LineString([(q["lon"], q["lat"]) for q in e["geometry"]]) for e in J("water.json")["elements"] if e["type"] == "way" and e.get("tags", {}).get("natural") == "coastline" and len(e.get("geometry") or []) > 1]
+    if coast:
+        FW, FS, FE, FN = json.loads((D / "frame.json").read_text())
+        bpts = []
+        for f in sorted(glob.glob(str(D / "bld-*.csv"))):
+            for r in csv.reader(open(f), delimiter="\t"):
+                if len(r) >= 2 and r[0][:1].isdigit():
+                    bpts.append(Point(float(r[1]), float(r[0])))
+        btree = STRtree(bpts) if bpts else None
+        sea = [pg for pg in polygonize(unary_union(coast + [box(FW, FS, FE, FN).boundary])) if btree is not None and len(btree.query(pg, predicate="contains")) < max(3, pg.area * 2e4)]
+        if sea:
+            land = land.difference(unary_union(sea).buffer(0.0002)).buffer(0)
+    if isinstance(land, MultiPolygon):
+        land = unary_union([g for g in land.geoms if g.area > 1.5e-6])
+    W0, S0, E0, N0 = (lambda b: (b[0] - .006, b[1] - .006, b[2] + .006, b[3] + .006))(land.bounds)
+    KX = math.cos(math.radians((S0 + N0) / 2))
+    GW = 1200
+    GH = round(GW * (N0 - S0) / ((E0 - W0) * KX))
+    P = lambda lon, lat: ((lon - W0) / (E0 - W0) * GW, (N0 - lat) / (N0 - S0) * GH)
+    rnd1 = lambda v: round(v, 1)
+    mask = Image.new("L", (GW, GH), 0); d = ImageDraw.Draw(mask)
+    for g in (land.geoms if hasattr(land, "geoms") else [land]):
+        d.polygon([P(*q) for q in g.exterior.coords], fill=255)
+        for r in g.interiors:
+            d.polygon([P(*q) for q in r.coords], fill=0)
+    # labels: short names at a point inside each area
+    short = lambda s: re.split(r",| и ", s)[0].strip()
+    labels = []
+    for k, a in areas.items():
+        part = a.intersection(land)
+        if part.is_empty:
+            continue
+        big = max(part.geoms, key=lambda g: g.area) if hasattr(part, "geoms") else part
+        pt = Point(*c["pins"][k]) if k in c["pins"] else (big.centroid if big.contains(big.centroid) else big.representative_point())
+        x, y = P(pt.x, pt.y)
+        en = (c.get("names_en") or {}).get(k) or re.split(r",| and |\(", dy[k]["name"]["en"])[0].strip()
+        labels.append({"id": k, "text": c["names"].get(k) or short(dy[k]["name"]["ru"]), "en": en, "x": round(x), "y": round(y), "size": 1})
+    for lid, ru, en, lo, la in c.get("labels", []):   # places that are not pack areas, e.g. a bank joined by `extend`
+        if land.buffer(0.002).contains(Point(lo, la)):
+            x, y = P(lo, la); labels.append({"id": lid, "text": ru, "en": en, "x": round(x), "y": round(y), "size": 1})
+    for r in c["rivers"]:
+        x, y = P(r[2], r[3]); labels.append({"id": r[0], "text": r[0], "en": r[1], "x": round(x), "y": round(y), "river": True, "rot": r[4] if len(r) > 4 else 0})
+    polys = [[[[rnd1(v) for v in P(*q)] for q in g.simplify(0.00012).exterior.coords]] + [[[rnd1(v) for v in P(*q)] for q in r.coords] for r in g.simplify(0.00012).interiors if Polygon(r).area > 2e-7]
+             for g in (land.geoms if hasattr(land, "geoms") else [land])]
+    # parks
+    gs = []
+    for e in J("green.json")["elements"]:
+        if e["type"] == "way" and len(e.get("geometry") or []) > 3:
+            gs.append(Polygon([(q["lon"], q["lat"]) for q in e["geometry"]]).buffer(0))
+        elif e["type"] == "relation":
+            ws = [LineString([(q["lon"], q["lat"]) for q in m["geometry"]]) for m in e.get("members", []) if m.get("role") == "outer" and m.get("geometry")]
+            gs += list(polygonize(unary_union(ws)))
+    gu = unary_union([g for g in gs if g.area > 4e-6]).intersection(land.buffer(-0.0004)) if gs else Polygon()
+    green = [[[[rnd1(v) for v in P(*q)] for q in g.simplify(0.0001).exterior.coords]] for g in (gu.geoms if hasattr(gu, "geoms") else [gu]) if not g.is_empty and g.geom_type == "Polygon" and g.area > 6e-6]
+    # district borders
+    from shapely.ops import linemerge
+    borders, inner = [], land.buffer(-0.0004)
+    g = unary_union([a.boundary for a in areas.values()]).intersection(inner)   # shared borders once
+    g = linemerge(g) if g.geom_type in ("MultiLineString", "LineString") else g
+    for ln in (g.geoms if hasattr(g, "geoms") else [g]):
+        if not ln.is_empty and ln.geom_type == "LineString" and ln.length > 0.002:
+            borders.append([[rnd1(v) for v in P(*q)] for q in ln.simplify(0.00008).coords])
+    # buildings
+    RAW = []
+    for f in sorted(glob.glob(str(D / "bld-*.csv"))):
+        for r in csv.reader(open(f), delimiter="\t"):
+            if len(r) >= 2 and r[0][:1].isdigit():
+                lo, la = float(r[1]), float(r[0])
+                if W0 < lo < E0 and S0 < la < N0:
+                    RAW.append((lo, la, r[2] if len(r) > 2 else ""))
+    LM = c["landmarks"]
+    landmarks = [{"kind": k, "name": n, "x": rnd1(P(lo, la)[0]), "y": rnd1(P(lo, la)[1])} for k, n, lo, la in LM if land.buffer(0.002).contains(Point(lo, la))]
+    # blocks: the land cut by streets, raised by the buildings in them (people per km² where OSM has few buildings)
+    lines = []
+    for f in ["roads.json", "roads2.json"] + [Path(x).name for x in sorted(glob.glob(str(D / "res-*.json")))]:
+        for e in J(f)["elements"]:
+            if e["type"] == "way" and len(e.get("geometry") or []) > 1:
+                lines.append(LineString([(q["lon"], q["lat"]) for q in e["geometry"]]))
+    blocks = []
+    if lines:
+        holes = unary_union([gu.buffer(0.0002)] + [Point(lo, la).buffer(0.0016 if k in ("fortress", "arena", "wat", "palace") else 0.0011) for k, n, lo, la in LM])
+        pts = [Point(q[0], q[1]) for q in RAW]; tree = STRtree(pts) if pts else None
+        ppts = [Point(q[0], q[1]) for q in POP]; ptree = STRtree(ppts) if ppts else None
+        def lvl(v):
+            try: return float(v)
+            except ValueError: return None
+        for pg in polygonize(unary_union(lines + [land.boundary])):
+            pg = pg.intersection(land)
+            for part in (pg.geoms if hasattr(pg, "geoms") else [pg]):
+                if part.geom_type != "Polygon" or part.area < 2.5e-7:
+                    continue
+                inner_ = part.buffer(-0.0002).buffer(0.00008).difference(holes)
+                if inner_.is_empty:
+                    continue
+                idx = tree.query(part, predicate="contains") if tree is not None else []
+                lvs = [v for v in (lvl(RAW[i][2]) for i in idx) if v]
+                lv = statistics.median(lvs) if lvs else (2 if len(idx) else 0)
+                dens = len(idx) / max(part.area / 1e-6, 0.05)
+                near = ptree.query(part.buffer(0.002)) if ptree is not None else []
+                popd = (sum(POP[i][2] for i in near) / len(near)) / 0.74 if len(near) else 0
+                if len(idx) < 6 and popd > 3000:
+                    dens = max(dens, popd / 2500)
+                    lv = 8 if popd > 16000 else 5 if popd > 9000 else 2
+                for q_ in (inner_.geoms if hasattr(inner_, "geoms") else [inner_]):
+                    if q_.geom_type == "Polygon" and q_.area > 1.2e-7:
+                        blocks.append({"lv": round(lv, 1), "d": round(dens, 1), "p": [[[rnd1(v) for v in P(*q)] for q in q_.simplify(0.00005).exterior.coords]]})
+    b64 = lambda im: (lambda b: (im.save(b, "PNG"), "data:image/png;base64," + base64.b64encode(b.getvalue()).decode())[1])(io.BytesIO())
+    blank = Image.new("L", (GW, GH), 0)
+    screen = yaml.safe_load((pack / "art" / "theme.yaml").read_text())["screen"]
+    print(f"  land {GW}x{GH}, blocks {len(blocks)}, parks {len(green)}, landmarks {len(landmarks)}, buildings {len(RAW)}, people cells {len(POP)}", flush=True)
+    return {"frame": {"west": W0, "east": E0, "south": S0, "north": N0}, "blocks": blocks, "roads": [], "landmarks": landmarks, "bld": [], "green": green, "borders": borders,
+            "hexes": [], "tiers": [], "towers": [], "land": polys, "w": GW, "h": GH, "mask": b64(mask), "water": b64(blank), "height": b64(blank), "heat": b64(blank),
+            "labels": labels, "screen": screen}
+
+
+# ---------------------------------------------------------------- render
+async def render(scene: dict, opts: dict) -> dict:
+    sys.path.insert(0, str(HERE))
+    from art import chromium, three  # the same cached three.js and Chromium as the toys
+    from playwright.async_api import async_playwright
+    lib = three()
+    async with async_playwright() as p:
+        b = await p.chromium.launch(executable_path=chromium(), args=["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"])
+        page = await b.new_page(viewport={"width": 400, "height": 300})
+        page.on("pageerror", lambda e: print("  [page]", e, file=sys.stderr))
+
+        async def serve(route):
+            path = route.request.url.split("citymap.local", 1)[1].split("?")[0].lstrip("/") or "scene.html"
+            f = lib / path.removeprefix("node_modules/three/") if path.startswith("node_modules/three/") else HERE / "citymap" / path
+            if not f.is_file():
+                return await route.fulfill(status=404, body="")
+            await route.fulfill(status=200, body=f.read_bytes(), headers={"content-type": "text/javascript" if f.suffix == ".js" else mimetypes.guess_type(str(f))[0] or "text/html"})
+
+        await page.route("http://citymap.local/**", serve)
+        await page.goto("http://citymap.local/scene.html")
+        await page.wait_for_function("window.ready === true")
+        r = await page.evaluate("([s, o]) => window.render(s, o)", [scene, opts])
+        await b.close()
+    return r
+
+
+def build(pack: Path, city: str) -> None:
+    from PIL import Image
+    scene = prepare(pack, city)
+    opts = {"tilt": 52, "ortho": True, "export": True, "width": int(os.environ.get("CITYMAP_WIDTH", 2000)), "blocks": True, "minD": 1.2, "bigD": 6,
+            "real": True, "diorama": True, "dioK": 0, "lmScale": 1, "trees": True, "green": True, "borders": False, "dist": 3000}   # borders: live walls in the app
+    r = asyncio.run(render(scene, opts))
+    im = Image.open(io.BytesIO(base64.b64decode(r["png"].split(",")[1]))).convert("RGBA")
+    art = pack / "art"
+    im.save(art / f"island-{city}.webp", "WEBP", quality=86, method=6)
+    meta = r["meta"]
+    meta["areas"] = dict(sorted(meta["areas"].items()))
+    meta["names"] = {l["id"]: {"ru": l["text"], "en": l["en"]} for l in sorted(scene["labels"], key=lambda l: l["id"]) if not l.get("river")}
+    (art / f"island-{city}.json").write_text(json.dumps(meta, ensure_ascii=False, indent=1) + "\n")
+    print(art / f"island-{city}.webp", im.size, f"{(art / f'island-{city}.webp').stat().st_size // 1024} KB", flush=True)
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    ap.add_argument("cmd", choices=["fetch", "build", "all"])
+    ap.add_argument("pack")
+    ap.add_argument("city")
+    a = ap.parse_args()
+    pack = Path(a.pack).resolve()
+    if a.cmd in ("fetch", "all"):
+        fetch(pack, a.city)
+    if a.cmd in ("build", "all"):
+        build(pack, a.city)
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,43 @@
+{
+  "mcpServers": {
+    "hunt": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--quiet",
+        "--script",
+        "${CLAUDE_PLUGIN_ROOT}/mcp/hunt_core.py"
+      ],
+      "env": {
+        "CLAUDE_PLUGIN_ROOT": "${CLAUDE_PLUGIN_ROOT}"
+      }
+    },
+    "hunt-telegram": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--quiet",
+        "--script",
+        "${CLAUDE_PLUGIN_ROOT}/mcp/hunt_telegram.py"
+      ]
+    },
+    "hunt-browser": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--quiet",
+        "--script",
+        "${CLAUDE_PLUGIN_ROOT}/mcp/hunt_browser.py"
+      ]
+    },
+    "hunt-bridge": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--quiet",
+        "--script",
+        "${CLAUDE_PLUGIN_ROOT}/mcp/hunt_bridge.py"
+      ]
+    }
+  }
+}

@@ -1,0 +1,13 @@
+id: alpha
+name: {en: Alpha City}
+center: [-8.8, 115.1]
+travel: {mode: scooter, avg_kmh: 25, rush_factor: 1.5}
+districts:
+  north: {name: {en: North}, aliases: [Upper], center: [-8.7, 115.1], note: "quiet"}
+  south: {name: {en: South}, center: [-8.9, 115.2]}
+price_ref:
+  1br: "10–15"
+overrides:
+  typical_terms:
+    deposit: "2 months"
+  payment_methods_note: "cash only in the south"
