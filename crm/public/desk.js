@@ -547,7 +547,7 @@ function Land({ list, sel, stops = null, word = null, children }) {
   const w = word ?? subRegion()?.name?.[LANG] ?? shortTitle(d.search.title);
   const pin = (l) => html`<button key=${l.id} class=${'dk-pin' + (l.id === sel?.id ? ' on' : '') + (l.stop ? ' at' : '')} style=${(() => { const [x, y] = at(l); return `left:${(x / isl.width) * 100}%;top:${(y / isl.height) * 100}%`; })()} onClick=${() => { hap.sel(); go(l.stop ? sp('listing', l.id) : sp('listings', l.id), !l.stop); }} aria-label=${`${shortTitle(l.title)}, ${priceText(l)}`}>${l.stop ? fmtTime(l.stop.v.starts_at) : prc(l)}</button>`;
   return html`<section class="dk-land" aria-label=${t('nav_map')}>${useToy && html`<div class="dk-bw" aria-hidden="true">${w}</div>`}
-    ${useToy ? html`<div class=${'dk-isl' + (isl.v === 2 ? ' v2' : '')} style=${`aspect-ratio:${isl.width}/${isl.height}`}><img src=${isl.src} alt="" draggable="false" />${isl.walls && html`<${Walls} isl=${isl} />`}
+    ${useToy ? html`<div class=${'dk-isl' + (isl.v === 2 ? ' v2' : '')} style=${`aspect-ratio:${isl.width}/${isl.height};--ar:${isl.width / isl.height}`}><img src=${isl.src} alt="" draggable="false" />${isl.walls && html`<${Walls} isl=${isl} />`}
         ${Object.entries(isl.areas ?? {}).map(([id, [x, y]]) => html`<span key=${id} class=${isl.v === 2 ? 'dk-sign' : 'dk-ar'} style=${`left:${(x / isl.width) * 100}%;top:${(y / isl.height) * 100}%`}>${isl.names?.[id]?.[LANG === 'ru' ? 'ru' : 'en'] ?? afArea(id) ?? ''}</span>`)}
         ${(isl.rivers ?? []).map((r) => html`<span key=${r.ru} class="dk-river" style=${`left:${(r.xy[0] / isl.width) * 100}%;top:${(r.xy[1] / isl.height) * 100}%;--rot:${r.rot}deg`}>${LANG === 'ru' ? r.ru : r.en}</span>`)}
         ${inside.map(pin)}</div>`

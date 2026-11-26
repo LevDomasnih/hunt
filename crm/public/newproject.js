@@ -31,7 +31,7 @@ function AreaMap({ wide, rerender }) {
   if (!isl || !isl.areas) {   // no toy land for this city: the areas as a list
     return html`<div class="np-alist">${areas.map(([id, a]) => html`<button key=${id} class=${'np-arow' + (NP.areas.includes(id) ? ' on' : '')} onClick=${() => pick(id)}><b>${nm(a.name)}</b><span>${nm(a.group)}</span>${NP.areas.includes(id) && html`<${Icon} n="check" cls="sm" />`}</button>`)}</div>`;
   }
-  return html`<div class="np-map" style=${`aspect-ratio:${isl.width}/${isl.height}`}><img src=${isl.src} alt="" draggable="false" />
+  return html`<div class="np-map" style=${`aspect-ratio:${isl.width}/${isl.height};--ar:${isl.width / isl.height}`}><img src=${isl.src} alt="" draggable="false" />
     ${Object.entries(isl.areas).map(([id, [x, y]]) => {
       const on = NP.areas.includes(id), open = NP.open === id, named = wide || on || open;
       const name = isl.names?.[id]?.[LANG === 'ru' ? 'ru' : 'en'] ?? nm(reg()?.areas?.[id]?.name) ?? id;
