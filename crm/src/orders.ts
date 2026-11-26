@@ -9,12 +9,16 @@ import { Env, HttpError, json, body, now, rid, parseJson, event, sensitive, http
 import { contactByAddress } from './household';
 import { packData } from './life';
 import { countryOf } from './members';
-import { member, localDay, h, type Access, type Role } from './wave5';
-import { draftToOwner, dmMembers, appUrl, localMinutes } from './notify';
+import { member, localDay, h, searchTzOf, type Access, type Role } from './wave5';
+import { draftToOwner, dmMembers, appUrl, localMinutes, commit } from './notify';
+import { tg } from './tg';
 import { rateLimit } from './media';
 import {
   cleanQty, totals, freeDelivery, slots, badTime, orderMessage, orderTranslation, chatUrl, parseImport, parseHours, UNITS, type MsgOpts, type Line,
 } from './order-text';
+import {
+  SET_NAME_MAX, REPEATS, SET_TIME_DEFAULT, nameKey, isTime, isDays, nextOccurrence, biweeklyAnchor, dueDay, bandsOf, spread, rangeStr, reminderText, reminderButtons, skippedLine,
+} from './order-sets';
 
 type Row = Record<string, any>;
 interface User { id: string; display_name: string; lang: string }
@@ -26,6 +30,8 @@ const KINDS = ['fruit', 'fish', 'other'];
 const CHANNELS = ['whatsapp', 'telegram', 'phone'];
 const MAX_LINES = 80;
 const USUAL_MIN = 2; // in this many delivered orders = "ваше обычное"
+const MAX_SETS = 50; // per search
+const RESTORE_MIN = 15; // "Вернуть" after "Очистить" works this long
 
 const txt = (v: unknown, field: string, max: number): string | null => {
   const s = v == null ? '' : String(v).replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, '').trim();
@@ -98,29 +104,130 @@ const supplierView = (s: Row, full: boolean, ratios?: Row[]) => ({
  * Home, the status screen and the history: suppliers (no items), baskets, active orders, the last delivered one per supplier,
  * the last 20 finished ones. Two D1 round trips at most, whatever the catalog size.
  */
-async function ordersView(env: Env, sid: string, full: boolean) {
+async function ordersView(env: Env, sid: string, full: boolean, tz: string | null = null) {
   const DB = env.DB;
   const pick = `SELECT id FROM orders WHERE search_id=?1 AND (status IN ('basket',${ACTIVE_SQL}) OR id IN (SELECT id FROM orders WHERE search_id=?1 AND status IN ('delivered','cancelled') ORDER BY updated_at DESC LIMIT 20))`;
-  const [su, or, ln, ra] = await DB.batch<Row>([
+  const [su, or, ln, ra, st, sl] = await DB.batch<Row>([
     DB.prepare('SELECT * FROM suppliers WHERE search_id=?1 AND hidden=0 ORDER BY sort, created_at').bind(sid),
     DB.prepare(`${ORDER_SQL} WHERE o.id IN (${pick}) ORDER BY o.updated_at DESC`).bind(sid),
     DB.prepare(`${LINES_SQL} WHERE l.order_id IN (${pick}) ORDER BY l.at, i.sort`).bind(sid),
     DB.prepare(RATIOS_SQL).bind(sid),
+    DB.prepare(SETS_SQL).bind(sid),
+    DB.prepare(SET_LINES_SQL).bind(sid),
   ]);
   const all = (or.results ?? []).map((o) => orderView(o, ln.results ?? [], full));
+  const sups = (su.results ?? []).map((s) => supplierView(s, full, ra.results ?? []));
+  const on = new Set(sups.map((s) => s.id));
   return {
-    suppliers: (su.results ?? []).map((s) => supplierView(s, full, ra.results ?? [])),
+    suppliers: sups,
     baskets: all.filter((o) => o.status === 'basket' && o.lines.length),
     active: all.filter((o) => ACTIVE.includes(o.status)),
     history: all.filter((o) => o.status === 'delivered' || o.status === 'cancelled'),
+    sets: (st.results ?? []).filter((x) => on.has(x.supplier_id)).map((x) => setView(x, sl.results ?? [], tz)),
   };
+}
+
+// ---------------------------------------------------------------- sets ("Наборы"): a saved basket of one supplier + an optional reminder
+
+const SETS_SQL = 'SELECT * FROM order_sets WHERE search_id=?1 ORDER BY created_at, id';
+const SET_LINES_SQL = `SELECT l.set_id, l.item_id, l.qty, i.name_id, i.name_ru, i.name_en, i.unit, i.step, i.price, i.price_unsure, i.toy, i.grp, i.hidden
+  FROM order_set_lines l JOIN supplier_items i ON i.id=l.item_id WHERE l.set_id IN (SELECT id FROM order_sets WHERE search_id=?1) ORDER BY l.sort, i.sort`;
+/** Live names and prices (like a basket); an item the supplier no longer lists is `gone` and never goes into the basket. */
+function setView(st: Row, lines: Row[], tz: string | null) {
+  return {
+    id: st.id, supplier_id: st.supplier_id, name: st.name, repeat: st.repeat, days: st.days, time: st.time, anchor: st.anchor,
+    next: tz && st.repeat !== 'none' ? nextOccurrence(st as any, localDay(tz), localMinutes(tz)) : null, last_sent: st.last_sent, skipped: st.skipped,
+    lines: lines.filter((l) => l.set_id === st.id).map((l) => ({
+      item_id: l.item_id, qty: l.qty, unit: l.unit, step: l.step, toy: l.toy, grp: l.grp, name_id: l.name_id, name_ru: l.name_ru, name_en: l.name_en,
+      price: l.price, unsure: !!l.price_unsure, ...(l.hidden ? { gone: true } : {}),
+    })),
+    created_by: st.created_by, created_at: st.created_at, updated_at: st.updated_at,
+  };
+}
+const setName = (v: unknown) => {
+  const n = txt(v, 'name', SET_NAME_MAX);
+  if (!n) throw new HttpError(400, 'missing', 'name is required');
+  return n;
+};
+/** repeat / days / time of a body against the current set; "every 2 weeks" gets its anchor week when it starts or the days change. */
+function scheduleCols(b: Row, cur: Row | null, tz: string): Record<string, unknown> {
+  const c: Record<string, unknown> = {};
+  if ('repeat' in b) { if (!(REPEATS as readonly string[]).includes(String(b.repeat))) throw new HttpError(400, 'bad_repeat', `repeat must be one of ${REPEATS.join(', ')}`); c.repeat = String(b.repeat); }
+  if ('days' in b) { const d = Number(b.days); if (!isDays(d)) throw new HttpError(400, 'bad_days', 'days is a weekday bitmask 0…127 (1 = Monday … 64 = Sunday)'); c.days = d; }
+  if ('time' in b) { if (!isTime(b.time)) throw new HttpError(400, 'bad_time', 'time must be HH:MM'); c.time = b.time; }
+  const repeat = (c.repeat ?? cur?.repeat ?? 'none') as string, days = (c.days ?? cur?.days ?? 0) as number, time = (c.time ?? cur?.time ?? SET_TIME_DEFAULT) as string;
+  if (repeat !== 'none' && !days) throw new HttpError(400, 'need_days', 'Pick at least one weekday');
+  if (repeat === 'biweekly' && ('repeat' in c && cur?.repeat !== 'biweekly' || 'days' in c || !cur?.anchor)) c.anchor = biweeklyAnchor(days, time, localDay(tz), localMinutes(tz));
+  if (repeat !== 'biweekly' && 'repeat' in c) c.anchor = null;
+  return c;
+}
+async function nameFree(env: Env, sid: string, key: string, id = '') {
+  const x = await env.DB.prepare('SELECT 1 FROM order_sets WHERE search_id=? AND name_key=? AND id!=?').bind(sid, key, id).first();
+  if (x) throw new HttpError(409, 'name_taken', 'There is a set with this name already');
+}
+const setOf = async (env: Env, sid: string, id: unknown) => {
+  const st = await env.DB.prepare('SELECT os.* FROM order_sets os JOIN suppliers s ON s.id=os.supplier_id AND s.hidden=0 WHERE os.id=? AND os.search_id=?').bind(String(id ?? ''), sid).first<Row>();
+  if (!st) throw new HttpError(404, 'no_set');
+  return st;
+};
+
+/** The set's lines that go into the basket and the range for them: the same formula and data as the Mini App (order-sets.ts spread). */
+async function setRange(env: Env, st: Row) {
+  const [ls, su, ra, it] = await env.DB.batch<Row>([
+    env.DB.prepare('SELECT l.qty, i.price, i.unit, i.grp, i.price_unsure unsure FROM order_set_lines l JOIN supplier_items i ON i.id=l.item_id AND i.hidden=0 WHERE l.set_id=?').bind(st.id),
+    env.DB.prepare('SELECT min_free_delivery, delivery_fee, currency FROM suppliers WHERE id=?').bind(st.supplier_id),
+    env.DB.prepare(`SELECT round(total_final * 1.0 / total_est, 4) r FROM orders WHERE supplier_id=? AND status='delivered' AND total_est > 0 AND total_final > 0 AND unknown_n = 0 ORDER BY delivered_at, id`).bind(st.supplier_id),
+    env.DB.prepare('SELECT price, price_unsure, grp, unit FROM supplier_items WHERE supplier_id=? AND hidden=0 AND price > 0').bind(st.supplier_id),
+  ]);
+  const lines = (ls.results ?? []) as any[];
+  return { n: lines.length, sp: spread(lines, (su.results?.[0] ?? null) as any, (ra.results ?? []).map((x) => Number(x.r)).slice(-RATIOS_MAX), bandsOf((it.results ?? []) as any)) };
+}
+
+/**
+ * Cron (every 15 min): a set with a repeat reminds every member (owner, members; notifications on, their language, quiet
+ * hours postpone it) on its day at its local time, once a day. Buttons: "Собрать корзину" (the Mini App puts the set into the
+ * basket and opens it) and "Пропустить". The order itself is never sent from here.
+ */
+export async function setsCron(env: Env) {
+  const rows = (await env.DB.prepare(`SELECT os.*, s.region, s.brief FROM order_sets os JOIN searches s ON s.id=os.search_id AND s.status!='closed'
+      JOIN suppliers su ON su.id=os.supplier_id AND su.hidden=0 WHERE os.repeat IN ('weekly','biweekly') AND os.days > 0 LIMIT 300`).all<Row>()).results ?? [];
+  for (const st of rows) {
+    const tz = searchTzOf(st);
+    const day = dueDay(st as any, localDay(tz), localMinutes(tz));
+    if (!day) continue;
+    const r = await setRange(env, st);
+    if (r.n) await dmMembers(env, st.search_id, (lang) => setReminder(env, st, day, r, lang), { quiet: 'postpone', key: `oset:${st.id}:${day}`, votersOnly: true });
+    await commit(env, [env.DB.prepare('UPDATE order_sets SET last_sent=? WHERE id=?').bind(day, st.id)]);
+  }
+}
+/** The reminder DM (exported for the checks: it is built without sending). */
+export function setReminder(env: Env, st: Row, day: string, r: { n: number; sp: ReturnType<typeof spread> }, lang: string) {
+  const bt = reminderButtons(lang);
+  return {
+    text: reminderText(lang, day, st.name, r.n, r.sp ? rangeStr(r.sp.lo, r.sp.hi, r.sp.cur, lang) : null),
+    buttons: [[{ text: bt.go, web_app: { url: appUrl(env, `/s/${st.search_id}/set-apply/${st.id}`) } }, { text: bt.skip, callback_data: `os:${day}:${st.id}` }]],
+  };
+}
+/** Bot callback "os:<day>:<set>" (Пропустить): this occurrence is skipped, the message says so and loses its buttons. */
+export async function setSkipCallback(env: Env, user: { id: string; display_name: string; lang: string }, q: any, day: string, id: string): Promise<string | null> {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day ?? '')) return null;
+  const st = await env.DB.prepare(`SELECT os.id, s.status FROM order_sets os JOIN searches s ON s.id=os.search_id
+      JOIN members m ON m.search_id=os.search_id AND m.user_id=? AND m.role IN ('owner','member') WHERE os.id=?`).bind(user.id, String(id ?? '')).first<Row>();
+  if (!st) return null;
+  const ru = user.lang !== 'en';
+  if (st.status === 'closed') return ru ? 'Проект закрыт' : 'The project is closed';
+  await env.DB.prepare('UPDATE order_sets SET skipped=?, updated_at=? WHERE id=?').bind(day, now(), st.id).run();
+  if (q?.message) {
+    await tg(env, 'editMessageText', { chat_id: q.message.chat.id, message_id: q.message.message_id, text: `${String(q.message.text ?? '')}\n\n${skippedLine(user.lang, user.display_name)}`, reply_markup: { inline_keyboard: [] } }).catch(() => null);
+  }
+  return ru ? 'Пропускаем' : 'Skipped';
 }
 
 /** The whole shop: every supplier with its catalog (items as arrays, see ITEM_KEYS) + the orders view. */
 export const ITEM_KEYS = ['id', 'ru', 'en', 'name_id', 'grp', 'unit', 'step', 'price', 'flags', 'toy', 'top', 'fav']; // flags: 1 = unsure, 2 = by request
-async function shopView(env: Env, sid: string, full: boolean) {
+async function shopView(env: Env, sid: string, full: boolean, tz: string) {
   const [v, it] = await Promise.all([
-    ordersView(env, sid, full),
+    ordersView(env, sid, full, tz),
     env.DB.prepare(`SELECT i.* FROM supplier_items i JOIN suppliers s ON s.id=i.supplier_id WHERE s.search_id=? AND s.hidden=0 AND i.hidden=0 ORDER BY i.supplier_id, i.sort, i.name_ru`).bind(sid).all<Row>(),
   ]);
   const items: Record<string, unknown[][]> = {};
@@ -216,8 +323,8 @@ export async function ordersApp(req: Request, env: Env, path: string, user: User
     const sid = q.get('s') ?? '';
     const a = await member(env, sid, user.id, path === '/app/api/order-preview' ? VOTERS : READERS);
     const full = VOTERS.includes(a.role); // legacy viewers: the catalog and statuses, never the message, the address or the expense
-    if (path === '/app/api/shop') return json(await shopView(env, sid, full));
-    if (path === '/app/api/orders') return json(await ordersView(env, sid, full));
+    if (path === '/app/api/shop') return json(await shopView(env, sid, full, a.tz));
+    if (path === '/app/api/orders') return json(await ordersView(env, sid, full, a.tz));
     if (path === '/app/api/order-preview') return json(await preview(env, a, sid, q.get('id'), user.lang));
     const { o, lines } = await oneOrder(env, sid, q.get('id'));
     return json({ order: orderView(o, lines, full) });
@@ -226,7 +333,7 @@ export async function ordersApp(req: Request, env: Env, path: string, user: User
   const b = await body(req);
   const sid = String(b.search_id ?? '');
   const a = await member(env, sid, user.id, VOTERS);
-  const view = async () => json(await ordersView(env, sid, true));
+  const view = async (extra: Row = {}) => json({ ...(await ordersView(env, sid, true, a.tz)), ...extra });
 
   // One line of the shared basket: the absolute quantity (so a retry is harmless); 0 removes it.
   if (path === '/app/api/order-line') {
@@ -259,8 +366,11 @@ export async function ordersApp(req: Request, env: Env, path: string, user: User
 
   if (path === '/app/api/order-again') {
     // "Как в прошлый раз": the last delivered order's lines into the basket (what is there already stays), current prices.
-    const last = await DB.prepare("SELECT o.id FROM orders o JOIN suppliers s ON s.id=o.supplier_id AND s.hidden=0 WHERE o.search_id=? AND o.status='delivered' AND (?2='' OR o.supplier_id=?2) ORDER BY o.delivered_at DESC LIMIT 1")
-      .bind(sid, String(b.supplier_id ?? '')).first<Row>();
+    // With order_id: that order ("Повторить" on a receipt), otherwise the last delivered one (of the supplier).
+    const last = b.order_id
+      ? await DB.prepare("SELECT o.id FROM orders o JOIN suppliers s ON s.id=o.supplier_id AND s.hidden=0 WHERE o.id=? AND o.search_id=? AND o.status!='basket'").bind(String(b.order_id), sid).first<Row>()
+      : await DB.prepare("SELECT o.id FROM orders o JOIN suppliers s ON s.id=o.supplier_id AND s.hidden=0 WHERE o.search_id=? AND o.status='delivered' AND (?2='' OR o.supplier_id=?2) ORDER BY o.delivered_at DESC LIMIT 1")
+        .bind(sid, String(b.supplier_id ?? '')).first<Row>();
     if (!last) throw new HttpError(404, 'no_last_order', 'No delivered order yet');
     const su = (await DB.prepare('SELECT supplier_id FROM orders WHERE id=?').bind(last.id).first<Row>())!.supplier_id;
     const t = now();
@@ -271,7 +381,70 @@ export async function ordersApp(req: Request, env: Env, path: string, user: User
         ON CONFLICT(order_id, item_id) DO NOTHING`).bind(su, user.id, t, last.id),
       DB.prepare("UPDATE orders SET updated_at=? WHERE supplier_id=? AND status='basket'").bind(t, su),
     ]);
-    return json({ ...(await ordersView(env, sid, true)), supplier_id: su });
+    return view({ supplier_id: su });
+  }
+
+  // ---- sets ("Наборы")
+  if (path === '/app/api/order-set-save') {
+    // From the basket or any earlier order of this search: its lines (item + qty) become a set of that supplier.
+    const src = await DB.prepare(`SELECT o.id, o.supplier_id, (SELECT COUNT(*) FROM order_lines WHERE order_id=o.id) n, (SELECT COUNT(*) FROM order_sets WHERE search_id=?2) sets
+      FROM orders o JOIN suppliers s ON s.id=o.supplier_id AND s.hidden=0 WHERE o.id=?1 AND o.search_id=?2`).bind(String(b.from_order_id ?? ''), sid).first<Row>();
+    if (!src) throw new HttpError(404, 'no_order');
+    if (!Number(src.n)) throw new HttpError(400, 'empty_basket', 'The basket is empty');
+    if (Number(src.sets) >= MAX_SETS) throw new HttpError(409, 'too_many_sets', `Up to ${MAX_SETS} sets per project`);
+    const name = setName(b.name), key = nameKey(name);
+    const sc = scheduleCols(b, null, a.tz);
+    await nameFree(env, sid, key);
+    const sid2 = rid('os_'), t = now();
+    try {
+      await DB.batch([
+        DB.prepare(`INSERT INTO order_sets (id, search_id, supplier_id, name, name_key, repeat, days, time, anchor, created_by, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`)
+          .bind(sid2, sid, src.supplier_id, name, key, sc.repeat ?? 'none', sc.days ?? 0, sc.time ?? SET_TIME_DEFAULT, sc.anchor ?? null, user.id, t, t),
+        DB.prepare('INSERT INTO order_set_lines (set_id, item_id, qty, sort) SELECT ?1, item_id, qty, ROW_NUMBER() OVER (ORDER BY at, item_id) FROM order_lines WHERE order_id=?2').bind(sid2, src.id),
+      ]);
+    } catch (e) {
+      if (/UNIQUE/i.test(String((e as Error)?.message ?? e))) throw new HttpError(409, 'name_taken', 'There is a set with this name already');
+      throw e;
+    }
+    return view({ set_id: sid2 });
+  }
+  if (path === '/app/api/order-set-edit') {
+    const st = await setOf(env, sid, b.set_id);
+    const cols = scheduleCols(b, st, a.tz);
+    if ('name' in b) { cols.name = setName(b.name); cols.name_key = nameKey(cols.name as string); await nameFree(env, sid, cols.name_key as string, st.id); }
+    if (!Object.keys(cols).length) throw new HttpError(400, 'missing', 'nothing to change');
+    try {
+      await DB.prepare(`UPDATE order_sets SET ${Object.keys(cols).map((k) => `${k}=?`).join(', ')}, updated_at=? WHERE id=?`).bind(...Object.values(cols), now(), st.id).run();
+    } catch (e) {
+      if (/UNIQUE/i.test(String((e as Error)?.message ?? e))) throw new HttpError(409, 'name_taken', 'There is a set with this name already');
+      throw e;
+    }
+    return view({ set_id: st.id });
+  }
+  if (path === '/app/api/order-set-delete') {
+    const st = await setOf(env, sid, b.set_id);
+    await DB.batch([DB.prepare('DELETE FROM order_set_lines WHERE set_id=?').bind(st.id), DB.prepare('DELETE FROM order_sets WHERE id=?').bind(st.id)]);
+    return view();
+  }
+  if (path === '/app/api/order-set-apply') {
+    // "В корзину": the set's lines are ADDED to the supplier's basket (what is there stays; the same item keeps the larger
+    // quantity), current prices; items the supplier no longer lists are skipped. Then the usual check → send.
+    const st = await setOf(env, sid, b.set_id);
+    const c = await DB.prepare(`SELECT (SELECT COUNT(*) FROM order_set_lines l JOIN supplier_items i ON i.id=l.item_id AND i.hidden=0 WHERE l.set_id=?1) n,
+        (SELECT COUNT(*) FROM order_set_lines l JOIN supplier_items i ON i.id=l.item_id AND i.hidden=1 WHERE l.set_id=?1) gone,
+        (SELECT COUNT(*) FROM order_lines WHERE order_id=(SELECT id FROM orders WHERE supplier_id=?2 AND status='basket') AND item_id NOT IN (SELECT item_id FROM order_set_lines WHERE set_id=?1)) other`)
+      .bind(st.id, st.supplier_id).first<Row>();
+    if (!Number(c?.n)) throw new HttpError(409, 'set_empty', 'Nothing in this set is on the price list any more');
+    if (Number(c!.n) + Number(c!.other) > MAX_LINES) throw new HttpError(409, 'too_many_lines', `Up to ${MAX_LINES} items per order`);
+    const t = now();
+    await DB.batch([
+      DB.prepare("INSERT OR IGNORE INTO orders (id, search_id, supplier_id, status, created_by, created_at, updated_at) VALUES (?,?,?,'basket',?,?,?)").bind(rid('or_'), sid, st.supplier_id, user.id, t, t),
+      DB.prepare(`INSERT INTO order_lines (order_id, item_id, qty, added_by, at)
+        SELECT (SELECT id FROM orders WHERE supplier_id=?1 AND status='basket'), l.item_id, l.qty, ?2, ?3 FROM order_set_lines l JOIN supplier_items i ON i.id=l.item_id AND i.hidden=0 WHERE l.set_id=?4
+        ON CONFLICT(order_id, item_id) DO UPDATE SET qty=MAX(qty, excluded.qty)`).bind(st.supplier_id, user.id, t, st.id),
+      DB.prepare("UPDATE orders SET updated_at=? WHERE supplier_id=? AND status='basket'").bind(t, st.supplier_id),
+    ]);
+    return view({ supplier_id: st.supplier_id, set_id: st.id, added: Number(c!.n), gone: Number(c!.gone) });
   }
 
   const id = String(b.order_id ?? '');
@@ -305,9 +478,32 @@ export async function ordersApp(req: Request, env: Env, path: string, user: User
     return json(await preview(env, a, sid, id, user.lang));
   }
   if (path === '/app/api/order-clear') {
+    // The removed lines (qty, who added them) and the note / time stay on the order for RESTORE_MIN minutes: "Вернуть".
     if (o.status !== 'basket') throw new HttpError(409, 'order_changed');
-    await DB.batch([DB.prepare("DELETE FROM order_lines WHERE order_id=?1 AND EXISTS (SELECT 1 FROM orders WHERE id=?1 AND status='basket')").bind(id), DB.prepare('UPDATE orders SET note=NULL, deliver_day=NULL, deliver_time=NULL, updated_at=? WHERE id=?').bind(now(), id)]);
-    return view();
+    const t = now();
+    const r = await DB.batch([
+      DB.prepare(`UPDATE orders SET cleared=json_object('lines', json((SELECT json_group_array(json_object('item_id', item_id, 'qty', qty, 'added_by', added_by, 'at', at)) FROM order_lines WHERE order_id=?1)),
+          'note', note, 'day', deliver_day, 'time', deliver_time), cleared_at=?2 WHERE id=?1 AND status='basket' AND EXISTS (SELECT 1 FROM order_lines WHERE order_id=?1)`).bind(id, t),
+      DB.prepare("DELETE FROM order_lines WHERE order_id=?1 AND EXISTS (SELECT 1 FROM orders WHERE id=?1 AND status='basket')").bind(id),
+      DB.prepare('UPDATE orders SET note=NULL, deliver_day=NULL, deliver_time=NULL, updated_at=? WHERE id=?').bind(t, id),
+    ]);
+    return view({ cleared: r[0].meta.changes ? { order_id: id, supplier_id: o.supplier_id, n: r[1].meta.changes } : null });
+  }
+  if (path === '/app/api/order-restore') {
+    // "Вернуть": exactly the lines of the last clear (an item added again meanwhile keeps the larger quantity and its adder).
+    if (o.status !== 'basket' || !o.cleared) throw new HttpError(409, 'nothing_to_restore', 'Nothing to bring back');
+    if (Date.parse(o.cleared_at) < Date.now() - RESTORE_MIN * 60e3) throw new HttpError(409, 'restore_expired', 'Too late to bring it back');
+    const c = parseJson<Row>(o.cleared, {});
+    const J = (k: string) => `json_extract(j.value,'$.${k}')`;
+    const t = now();
+    const r = await DB.batch([
+      DB.prepare(`INSERT INTO order_lines (order_id, item_id, qty, added_by, at) SELECT ?1, ${J('item_id')}, ${J('qty')}, coalesce(${J('added_by')}, ?3), coalesce(${J('at')}, ?4)
+          FROM json_each(?2) j JOIN supplier_items i ON i.id=${J('item_id')} AND i.supplier_id=?5 WHERE true
+          ON CONFLICT(order_id, item_id) DO UPDATE SET qty=MAX(qty, excluded.qty)`).bind(id, JSON.stringify(Array.isArray(c.lines) ? c.lines : []), user.id, t, o.supplier_id),
+      DB.prepare(`UPDATE orders SET cleared=NULL, cleared_at=NULL, note=coalesce(note, ?1), deliver_day=coalesce(deliver_day, ?2), deliver_time=coalesce(deliver_time, ?3), updated_at=?4 WHERE id=?5 AND status='basket'`)
+        .bind(c.note ?? null, c.day ?? null, c.time ?? null, t, id),
+    ]);
+    return view({ restored: r[0].meta.changes, supplier_id: o.supplier_id });
   }
   if (path === '/app/api/order-open') {
     // The human presses send themselves: we only hand out the link with the text and ask afterwards.
@@ -525,6 +721,12 @@ export async function ordersAgent(req: Request, env: Env, p: string[], s: { id: 
       return json({ supplier: su, items: it.results ?? [], price_history: pr.results ?? [], units: UNITS });
     }
     return null;
+  }
+  if (p[3] === 'sets' && p.length === 4 && m === 'GET') {
+    // Read-only for the agent: the members' saved baskets and their reminders (the agent never edits sets or orders).
+    const v = await ordersView(env, s.id, true, searchTzOf(s));
+    const su = new URL(req.url).searchParams.get('supplier_id');
+    return json({ sets: su ? v.sets.filter((x) => x.supplier_id === su) : v.sets });
   }
   if (p[3] === 'orders') {
     if (p.length === 4 && m === 'GET') {

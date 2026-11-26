@@ -1,0 +1,47 @@
+{
+  "name": "hunt",
+  "version": "0.1.0",
+  "description": "Rent and run a home abroad with friends: your agent, your accounts, a Telegram Mini App.",
+  "author": { "name": "Hunt contributors" },
+  "homepage": "https://github.com/LevDomasnih/hunt-app",
+  "repository": "https://github.com/LevDomasnih/hunt-app",
+  "license": "AGPL-3.0-only",
+  "keywords": ["rental", "housing", "relocation", "telegram", "whatsapp", "bali", "thailand", "kazakhstan"],
+  "skills": ["./skills/", "./codex-skills/"],
+  "mcpServers": {
+    "hunt": {
+      "command": "uv",
+      "args": ["run", "--quiet", "--script", "./mcp/hunt_core.py"],
+      "cwd": ".",
+      "env_vars": ["HUNT_CONFIG_DIR", "HUNT_API_URL", "HUNT_TOKEN", "HUNT_REGIONS", "HUNT_PACKS"]
+    },
+    "hunt-telegram": {
+      "command": "uv",
+      "args": ["run", "--quiet", "--script", "./mcp/hunt_telegram.py"],
+      "cwd": ".",
+      "env_vars": ["HUNT_CONFIG_DIR"]
+    },
+    "hunt-browser": {
+      "command": "uv",
+      "args": ["run", "--quiet", "--script", "./mcp/hunt_browser.py"],
+      "cwd": ".",
+      "env_vars": ["HUNT_CONFIG_DIR", "HUNT_CHROMIUM", "PLAYWRIGHT_BROWSERS_PATH"]
+    },
+    "hunt-bridge": {
+      "command": "uv",
+      "args": ["run", "--quiet", "--script", "./mcp/hunt_bridge.py"],
+      "cwd": ".",
+      "env_vars": ["HUNT_CONFIG_DIR"]
+    }
+  },
+  "interface": {
+    "displayName": "Hunt",
+    "shortDescription": "Find, negotiate and rent a home abroad with friends",
+    "longDescription": "Listings, landlord chats in Telegram, WhatsApp, Messenger and Instagram from your own accounts, viewings, lease review and shared money. Friends vote in a Telegram Mini App; nothing is sent without your yes.",
+    "developerName": "Hunt contributors",
+    "category": "Productivity",
+    "capabilities": ["Read", "Write"],
+    "websiteURL": "https://github.com/LevDomasnih/hunt-app",
+    "defaultPrompt": ["Start a new search in Tbilisi", "What's new in my hunt?", "Plan viewings for tomorrow"]
+  }
+}

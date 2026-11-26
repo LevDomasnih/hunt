@@ -17,6 +17,7 @@ import { stageCron } from './stage';
 import { partyCron, feedbackCron } from './party';
 import { openDraft, unseal } from './vault';
 import { accessCron } from './access';
+import { setsCron } from './orders';
 
 /** Wave 8.3: once a home is chosen, a thread about another home is the search archive: never "waiting for you" (same rule as
  * thArchived in public/app.js). The home = searches.home_listing_id or a listing taken; house contacts always stay with the home. */
@@ -110,7 +111,7 @@ function countingDB(db: D1Database, b: Budget): D1Database {
 }
 
 /** Writes that must follow a successful send ("sent" marks, outbox deletes): from the reserve, one batch. */
-async function commit(env: Env, sts: D1PreparedStatement[]) {
+export async function commit(env: Env, sts: D1PreparedStatement[]) {
   if (!sts.length) return;
   const r = run(env);
   if (!r) { await env.DB.batch(sts); return; }
@@ -603,9 +604,10 @@ export async function runCron(env: Env): Promise<void> {
   const jobs = [['viewings', viewingReminders], ['dates', dateReminders], ['digest', morningDigest], ['ratings', rateReminders], ['power', powerReminders], ['visa', visaReminders],
     ['bikes', (e: Env) => bikeReminders(e, cronCtx())], ['calendar', (e: Env) => calendarReminders(e, cronCtx())],
     ['renewal', (e: Env) => renewalCron(e, cronCtx())], ['guests', expireGuests], ['counters', pruneCounters], ['access', accessCron], ['stage', stageCron], ['afisha', afishaCron], ['party', partyCron], ['feedback', feedbackCron], ['shares', sharesCron]] as const;
-  // The outbox first (time-sensitive), then the rest starting at a different job every tick, so a busy job never starves the others.
+  // The outbox and the sets' reminders first (time-sensitive; one query when nothing is due), then the rest starting at a
+  // different job every tick, so a busy job never starves the others.
   const shift = Math.floor(Date.now() / 900e3) % jobs.length;
-  const order = [['outbox', flushOutbox] as const, ...jobs.slice(shift), ...jobs.slice(0, shift)];
+  const order = [['outbox', flushOutbox] as const, ['sets', setsCron] as const, ...jobs.slice(shift), ...jobs.slice(0, shift)];
   for (const [name, f] of order) {
     try { await f(cronEnv); } catch (e) {
       if (e instanceof BudgetOut) { console.log('cron budget used up at', name, '- the next tick continues'); return; }

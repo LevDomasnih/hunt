@@ -128,6 +128,22 @@ def test_order_set_validation(net, kw, err):
     assert not net
 
 
+def test_sets_get(net):
+    run(hc.sets_get("s_1"))
+    assert net[-1].method == "GET" and net[-1].url.path == "/api/searches/s_1/sets" and not net[-1].url.params
+    run(hc.sets_get("s_1", supplier_id="su_abc"))
+    assert net[-1].url.params["supplier_id"] == "su_abc"
+    with pytest.raises(ToolError, match="supplier id"):
+        run(hc.sets_get("s_1", supplier_id="../x"))
+    assert len(net) == 2
+
+
+def test_the_agent_cannot_change_sets():
+    names = {n for n in dir(hc) if n.startswith("set")}
+    assert "sets_get" in names
+    assert not names & {"set_create", "set_set", "set_delete", "set_apply", "sets_set"}
+
+
 def test_the_agent_has_no_tool_to_order_or_pay():
     names = {n for n in dir(hc) if n.startswith(("order_", "basket_", "supplier_", "catalog_"))}
     assert {"order_set", "supplier_set", "catalog_import", "catalog_get"} <= names

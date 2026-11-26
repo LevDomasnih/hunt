@@ -21,7 +21,7 @@ motif-scene.svg          the skyline, 360 × 160, one colour with opacity
 island-<city>.webp/.json the 3D city map, made by `citymap.py` (settings: art/citymap.yaml); `art.py island` is the old flat one
 ```
 
-Tool: `uv run --script ${CLAUDE_PLUGIN_ROOT}/skills/hunt-art/scripts/art.py <check|toys|zoom|island|sheet|toy> …` (its header has the arguments). Nothing is uploaded; the first `toys` run fetches three.js once. No headless Chromium → ask the user before installing it.
+Tool (`${CLAUDE_PLUGIN_ROOT}/skills/hunt-art` = this skill's folder; in Codex, where that variable is not set, use the folder of this SKILL.md): `uv run --script ${CLAUDE_PLUGIN_ROOT}/skills/hunt-art/scripts/art.py <check|toys|zoom|island|sheet|toy> …` (its header has the arguments). Nothing is uploaded; the first `toys` run fetches three.js once. No headless Chromium → ask the user before installing it.
 
 Work on the folder the hunter gave you. An installed pack lives in `~/.config/hunt/packs/regions/<country>` and `packs_update` replaces it, so draw in a checkout of the data repository (`git clone` of hunt-data, with the hunter's OK) or in a new folder `regions/<country>/` anywhere else.
 

@@ -5027,6 +5027,20 @@ async def orders_get(search_id: str, status: str | None = None) -> dict:
 
 
 @mcp.tool()
+async def sets_get(search_id: str, supplier_id: str | None = None) -> dict:
+    """The members' saved baskets ("Наборы"), read only. {sets: [{id (os_…), supplier_id, name, repeat (none | weekly |
+    biweekly), days (weekday bitmask: 1 = Monday … 64 = Sunday), time (HH:MM local), anchor (biweekly: a Monday of a week that
+    fires), next {day, time} | null (the next reminder), last_sent, skipped (a day someone tapped Пропустить), lines: [{item_id,
+    name_id, name_ru, name_en, qty, unit, price | null (live), gone (no longer on the price list)}]}]}.
+
+    Members make, change and fill sets themselves; on its day Hunt's bot only reminds them in Telegram and they send the order
+    as usual. You NEVER create, change or delete a set, and never turn a set into an order on your own. Use it to answer
+    questions ("что у нас в наборе на неделю?") or to notice that a set's item left the price list (`gone`)."""
+    params = _clean({"supplier_id": _supplier_id(supplier_id) if supplier_id is not None else None})
+    return await api("GET", f"/api/searches/{_q(search_id)}/sets", params=params)
+
+
+@mcp.tool()
 async def order_set(
     search_id: str,
     order_id: str,

@@ -204,7 +204,7 @@ export async function handleAgent(req: Request, env: Env, path: string): Promise
   if (p[1] === 'searches' && p[2]) {
     const s = await ownSearch(ctx, p[2]);
     // --- wave 10 · orders from suppliers (catalogs, the supplier's answers)
-    if (p[3] === 'suppliers' || p[3] === 'orders') { const r = await ordersAgent(req, env, p, s); if (r) return r; }
+    if (p[3] === 'suppliers' || p[3] === 'orders' || p[3] === 'sets') { const r = await ordersAgent(req, env, p, s); if (r) return r; }
     // Wave 6: the project stage (derived / manual / closed) and the lease terms ≥ 2 (extensions).
     if (p[3] === 'stage' || p[3] === 'terms') { const { handleStageAgent } = await import('./stage'); return handleStageAgent(req, env, p, s); }
     if (p.length === 3) {

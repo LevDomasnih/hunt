@@ -437,6 +437,8 @@ async function onCallback(env: Env, q: any) {
       reply_markup: q.message.reply_markup?.inline_keyboard?.[1] ? kb([q.message.reply_markup.inline_keyboard[1]]) : undefined }).catch(() => null);
     return answer(user.lang === 'en' ? 'Thanks!' : 'Спасибо!');
   }
+  // Orders · a set's reminder: "Пропустить" this occurrence ("os:<day>:<set>").
+  if (kind === 'os') { const { setSkipCallback } = await import('./orders'); return answer((await setSkipCallback(env, user, q, a, id)) ?? '—'); }
   if (kind === 'ar') return answer((await replyCallback(env, user, q, id)) ?? '—');
   if (kind === 'wl') return answer((await webCallback(env, user, q, a, id)) ?? '—');
   if (kind === 'ps' || kind === 'pr') return answer((await sharesCallback(env, user, q, kind, a, id)) ?? '—');

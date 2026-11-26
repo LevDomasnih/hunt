@@ -889,13 +889,21 @@ function useStore() {
   return S;
 }
 let toastTimer;
-function toast(msg) {
+/** A short line at the bottom; `act` = {label, icon?, run} adds one button (an undo) and keeps it longer. */
+function toast(msg, act = null, ms = 2400) {
   if (S.closedHint > Date.now() && msg === t('err_generic')) msg = t('pp_closed_toast');
   if (S.demoHint > Date.now() && msg === t('err_generic')) msg = LANG === 'en' ? 'This is a demo: nothing is sent' : 'Это демо: тут ничего не отправляется';
   S.toast = msg;
+  S.toastAct = act;
   emit();
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { S.toast = null; emit(); }, 2400);
+  toastTimer = setTimeout(() => { S.toast = null; S.toastAct = null; emit(); }, act ? Math.max(ms, 6000) : ms);
+}
+function ToastEl() {
+  if (!S.toast) return null;
+  const a = S.toastAct;
+  if (!a) return html`<div class="toast" role="status">${S.toast}</div>`;
+  return html`<div class="toast act" role="status"><span class="grow">${S.toast}</span><button class="toast-act" onClick=${() => { clearTimeout(toastTimer); S.toast = null; S.toastAct = null; emit(); a.run(); }}>${a.icon && html`<${Icon} n=${a.icon} cls="sm" />`}${a.label}</button></div>`;
 }
 const openSheet = (kind, arg) => { S.sheet = { kind, arg }; emit(); };
 const closeSheet = () => { S.sheet = null; emit(); };
@@ -1472,7 +1480,7 @@ const localHour = () => Number(new Intl.DateTimeFormat('en-GB', { hour: 'numeric
 /** Screen colour of a route (wave 8.1: every main tab its own): region (Home / Today, path, checklists), afisha (night palette in the
  * evening, afisha-day = hot coral 06:00–17:00), money (mint), more (sky), night (evening Home, dark theme via CSS), grey (secondary
  * screens: docs, lists, details). KZ / TH swaps for a clash with the region colour live in app.css. */
-const ORD_SCREENS = new Set(['shop', 'good', 'basket', 'order-check', 'order', 'orders']);
+const ORD_SCREENS = new Set(['shop', 'good', 'basket', 'order-check', 'order', 'orders', 'set-apply']);
 const TONE_REGION = new Set(['today', 'path', 'deal', 'onsite', 'moveout', 'next']);
 function toneFor(screen, arg) {
   const d = D();
@@ -8496,7 +8504,7 @@ const OR = { sid: null, v: null, items: null, price_at: {}, pend: new Map(), at:
 const ordSid = () => D()?.search?.id;
 const ordReset = () => { if (OR.sid !== ordSid()) { OR.sid = ordSid(); OR.v = null; OR.items = null; OR.pend.clear(); OR.at = 0; } };
 function ordApply(j) {
-  OR.v = { suppliers: j.suppliers ?? [], baskets: j.baskets ?? [], active: j.active ?? [], history: j.history ?? [] };
+  OR.v = { suppliers: j.suppliers ?? [], baskets: j.baskets ?? [], active: j.active ?? [], history: j.history ?? [], sets: j.sets ?? [] };
   OR.at = Date.now();
   if (j.items) {
     OR.items = {};
@@ -8596,9 +8604,10 @@ async function ordPost(act, body) {
   if (j.suppliers) ordApply(j);
   return j;
 }
-async function ordAgain(sup) {
+/** "Как в прошлый раз": the last delivered order (of `sup`), or exactly the order `oid` ("Повторить" on its receipt). */
+async function ordAgain(sup, oid = null) {
   hap.impact('medium');
-  try { const j = await ordPost('again', sup ? { supplier_id: sup } : {}); go(sp('basket', j.supplier_id)); }
+  try { const j = await ordPost('again', { ...(sup ? { supplier_id: sup } : {}), ...(oid ? { order_id: oid } : {}) }); go(sp('basket', j.supplier_id)); }
   catch (e) { toast(e.code === 'no_last_order' ? t('or_hist_none') : t('err_generic')); }
 }
 
@@ -8771,7 +8780,7 @@ function FreeBar({ sum, s }) {
  * The printed receipt: the basket (edit) and every order afterwards (the status screen, the expense in Деньги). White paper with a
  * torn edge in both themes; toys hang over its left edge.
  */
-function Receipt({ o, edit = false, s = null, date = null, slot = true, print = false, children }) {
+function Receipt({ o, edit = false, s = null, date = null, slot = true, print = false, head = null, children }) {
   const cur = o.currency ?? s?.currency ?? 'IDR';
   const total = edit ? o.sum : o.total ?? o.total_est ?? o.sum;
   const exact = !edit && o.status === 'delivered';
@@ -8782,7 +8791,7 @@ function Receipt({ o, edit = false, s = null, date = null, slot = true, print = 
     ${slot && html`<div class="rcpt-slot" aria-hidden="true"><i></i></div>`}
     <div class="rcpt-clip"><div class="rcpt-paper"><span class="rcpt-bg" aria-hidden="true"><i></i></span>
       <div class="rcpt-in">
-        <div class="rcpt-head"><b>${o.supplier ?? s?.name ?? ''}</b><span>${date ?? ''}</span></div>
+        ${head ?? html`<div class="rcpt-head"><b>${o.supplier ?? s?.name ?? ''}</b><span>${date ?? ''}</span></div>`}
         ${o.lines.map((l, i) => html`<div class="rcpt-ln" key=${l.item_id}><${Good} slug=${l.toy} size=${edit ? 92 : 58} rot=${ordRot(i)} cls="rcpt-toy" />
           <div class="rcpt-t"><b>${ordName(l)}</b><span>${edit ? ordPrice(l, cur) : l.price == null ? `${ordQ(l.unit, l.qty)}${l.unit === 'pcs' ? ' ' + t('or_pcs') : ''}` : `${ordQ(l.unit, l.qty)} × ${ordMoney(l.price, cur)}`}${l.unsure && html` <em>${t('or_unsure')}</em>`}${l.gone && html` <em>${t('or_gone')}</em>`}</span>
             ${edit && html`<${Qty} item=${l} qty=${l.qty} name=${ordName(l)} small />`}</div>
@@ -8799,9 +8808,9 @@ function Receipt({ o, edit = false, s = null, date = null, slot = true, print = 
  * "приготовить": the range, sharp over a soft haze of itself (blurred = still open). `paper` = on the basket receipt (the exact
  * bounds and the rows), otherwise on the screen colour with one line of why.
  */
-function OrdSpread({ sp, paper = false, caret = false }) {
+function OrdSpread({ sp, paper = false, caret = false, bare = false }) {
   const r = ordRangeTxt(sp.lo, sp.hi, sp.cur);
-  const why = !paper && ordSpreadWhy(sp);
+  const why = !paper && !bare && ordSpreadWhy(sp);
   return html`<div class=${'or-rg' + (paper ? ' paper' : '')}>
     <p class="or-rg-l">${t('or_rg_ready')}</p>
     <p class=${'or-rg-n' + (r.n.length > 7 ? ' long' : '')}><span class="or-rg-v"><span class="or-rg-h" aria-hidden="true">${r.n}</span><span class="or-rg-x">${r.n}</span></span>${(!paper || !r.big) && r.u && html`<span class="or-rg-u">${r.u}</span>`}${caret && html`<span class="caret" aria-hidden="true"></span>`}</p>
@@ -8876,6 +8885,7 @@ function ShopScreen({ arg }) {
       <${BigWord} text=${t('or_w_' + (s.kind ?? 'other'))} cls="or-word" />
       <${Typed} key=${s.id} lines=${[t('or_q_' + (s.kind ?? 'other'))]} as="h1" />
       ${last && ordCan() && html`<button class="sticker or-st" style="--r:12deg" onClick=${() => ordAgain(s.id)}><span>${t('or_again_st')}</span></button>`}
+      ${(v.sets ?? []).length > 0 && html`<h2 class="st-cap st-cap-shop">${t('st_title')}</h2><div class="st-tiles">${v.sets.map((st) => html`<${SetTile} key=${st.id} st=${st} cur=${s.id} />`)}</div>`}
       <p class="sr">${t(shelf.usual ? 'or_usual_pop' : 'or_pop')}</p>
       <div class=${'or-shelf n' + Math.min(8, shelf.list.length)}>${shelf.list.map((x, i) => {
         const l = inB.get(x.id);
@@ -8972,19 +8982,26 @@ function BasketScreen({ id }) {
   const shelf = ordShelf(s.id).list.filter((x) => !ordQty(x.id)).slice(0, 6);
   const last = ordLast(s.id);
   const can = ordCan();
-  const clear = async () => { if (!(await askConfirm(t('or_clear_q')))) return; try { await ordFlushAll(); await ordPost('clear', { order_id: OR.v.baskets.find((x) => x.supplier_id === s.id)?.id ?? '' }); } catch { toast(t('err_generic')); } };
+  const clear = () => { hap.sel(); openSheet('ord_clear', s.id); };
+  const save = async () => { hap.sel(); await ordFlushAll(); const id = OR.v?.baskets.find((x) => x.supplier_id === s.id)?.id; if (id) openSheet('ord_save', { from: id, sup: s.id }); };
+  const date = `${dfmt(new Date().toISOString(), { weekday: 'short' }).replace('.', '')} ${fmtDM(new Date().toISOString())}`;
+  // 1 · the receipt's own header: name, date and count, "Очистить" and "Сохранить как набор" (design/mockup-v5/sets-1)
+  const head = html`<div class="rcpt-head st-head"><div class="grow"><b>${s.name}</b><span>${date} · ${t('or_pos', { n: b.count })}</span></div>
+      ${can && html`<button class="st-tool" onClick=${clear}><${Icon} n="trash-2" cls="sm" />${t('or_clear')}</button>`}</div>
+    ${can && html`<button class="st-tool st-save" onClick=${save}><${Icon} n="bookmark-plus" cls="sm" />${t('st_save')}</button>`}`;
   return html`<main class=${'screen or-scr or-bsk' + (b.count ? ' has-cart' : '')}>
     <${OrdTabs} cur=${s.id} />
     <h1 class="sr">${t('or_receipt')}</h1>
     ${can && shelf.length > 0 && html`<div class="or-mini">${shelf.map((x, i) => html`<button key=${x.id} aria-label=${t('or_add', { t: ordName(x) })} onClick=${() => ordSetQty(x, x.step || 1)}><${Good} slug=${x.toy} size=${52} rot=${ordRot(i)} shadow=${false} /><span>${ordWord(x)} ${x.price == null ? '?' : ordMoney(x.price, s.currency, false)}</span></button>`)}</div>`}
-    ${b.count ? html`<${Receipt} o=${b} s=${s} edit print date=${`${dfmt(new Date().toISOString(), { weekday: 'short' }).replace('.', '')} ${fmtDM(new Date().toISOString())}`}>
+    ${b.count ? html`<${Receipt} o=${b} s=${s} edit print date=${date} head=${head}>
         ${!(s.min_free_delivery && b.sum >= s.min_free_delivery) && html`<${FreeBar} sum=${b.sum} s=${s} />`}
         ${last && can && html`<button class="sticker or-st-bsk coral" style="--r:-12deg" onClick=${() => ordAgain(s.id)}><span>${t('or_again_st')}</span></button>`}<//>
         ${s.delivery_note?.[LANG] && html`<p class="or-foot">${s.delivery_note[LANG]}</p>`}
-        ${can && html`<button class="btn ghost block" onClick=${clear}>${t('or_clear')}</button>`}
         <${OrdCart} sup=${s.id} cta=${t('or_check')} onGo=${async () => { hap.sel(); await ordFlushAll(); go(sp('order-check', s.id)); }} />`
       : html`<div class="rcpt with-slot is-empty"><div class="rcpt-slot" aria-hidden="true"><i></i></div><div class="rcpt-clip"><div class="rcpt-paper"><span class="rcpt-bg" aria-hidden="true"><i></i></span><div class="rcpt-in"><div class="rcpt-head"><b>${s.name}</b></div><${Typed} lines=${[t('or_empty_t')]} /><p class="muted">${t('or_empty_s')}</p></div></div></div></div>
         <div class="w8-pills or-empty-p"><button class="btn accent" onClick=${() => go(sp('shop', s.id), true)}>${t('or_to_shop')}</button>${last && can && html`<button class="btn surface" onClick=${() => ordAgain(s.id)}><${Icon} n="repeat" cls="sm" />${t('or_again')}</button>`}</div>
+        <${SetRows} sup=${s.id} />
+        <div class="bigword or-word st-empty-w" aria-hidden="true">${t('st_w_empty')}</div>
         <${Nav} tab="more" />`}
   </main>`;
 }
@@ -9109,13 +9126,15 @@ function OrderScreen({ id }) {
     </ol>`}
     ${sp && html`<div class="or-rg-wrap"><${OrdSpread} sp=${sp} /></div>`}
     ${fact}
-    <div class="or-ord-r"><${Receipt} o=${o} s=${s} slot=${false} date=${fmtDM(o.delivered_at ?? o.sent_at ?? o.opened_at ?? o.updated_at)} /></div>
+    ${delivered && can && !ordBasket(o.supplier_id).count && ordLast(o.supplier_id)?.id === o.id && html`<div class="st-again"><span class="st-again-ic" aria-hidden="true"><${Icon} n="basket" cls="sm" /></span><span class="grow"><b>${t('st_empty_again')}</b><span>${t('st_empty_again_s')}</span></span></div>`}
+    ${delivered && o.expense_id ? html`<button class="st-rrow" onClick=${() => { go(sp('money')); setTimeout(() => openSheet('expense', o.expense_id), 60); }}><span class="grow">${t('st_rcpt_row', { n: t('or_pos', { n: o.lines.length }) })}</span><${Icon} n="arrow-right" cls="sm" /></button>`
+      : html`<div class="or-ord-r"><${Receipt} o=${o} s=${s} slot=${false} date=${fmtDM(o.delivered_at ?? o.sent_at ?? o.opened_at ?? o.updated_at)} /></div>`}
     ${o.text && html`<details class="or-det"><summary>${t('or_text')}</summary><p lang="id">${o.text}</p></details>`}
     ${can && html`${!delivered && o.status !== 'cancelled' && html`<div class="or-send"><div class="or-two">${o.status === 'confirmed' && html`<button class="btn surface" onClick=${() => openSheet('ord_conf', { o })}>${t('or_fix')}</button>`}
         ${o.status !== 'confirmed' && write}
         <button class="btn surface" disabled=${busy} onClick=${cancel}>${t('or_cancel')}</button></div></div>`}
-      ${delivered || o.status === 'cancelled' ? html`<div class="or-send or-dock">${delivered && html`<button class="btn accent big grow" onClick=${() => ordAgain(o.supplier_id)}><${Icon} n="repeat" cls="sm" />${t('or_again')}</button>`}
-          ${delivered && o.expense_id ? html`<button class="btn surface big" onClick=${() => { go(sp('money')); setTimeout(() => openSheet('expense', o.expense_id), 60); }}>${t('or_exp_open')}</button>` : html`<button class="btn surface big" onClick=${() => go(sp('shop', o.supplier_id))}>${t('or_to_shop')}</button>`}</div>`
+      ${delivered || o.status === 'cancelled' ? html`<div class="or-send or-dock">${delivered && html`<button class="btn accent big grow" onClick=${() => ordAgain(o.supplier_id, o.id)}><${Icon} n="repeat" cls="sm" />${t('st_again')}</button>`}
+          ${delivered && s ? html`<button class="btn surface big" onClick=${() => { hap.sel(); openSheet('ord_save', { from: o.id, sup: o.supplier_id, lines: o.lines }); }}>${t('st_save')}</button>` : html`<button class="btn surface big" onClick=${() => go(sp('shop', o.supplier_id))}>${t('or_to_shop')}</button>`}</div>`
         : o.status !== 'draft' && o.status !== 'opened' && html`<div class="or-send or-dock">${o.status === 'sent' && html`<button class="btn accent big grow" onClick=${() => openSheet('ord_conf', { o })}>${t('or_confirm')}</button>`}<button class=${'btn big ' + (o.status === 'sent' ? 'surface' : 'accent grow')} disabled=${busy} onClick=${deliver}>${t('or_delivered')}</button>${o.status === 'confirmed' && write}</div>`}`}
   </main>`;
 }
@@ -9165,6 +9184,240 @@ function OrderReceiptOf({ id }) {
   const [o, setO] = useState(() => ordFind(id));
   useEffect(() => { if (!o) api(`/app/api/order?s=${encodeURIComponent(d.search.id)}&id=${encodeURIComponent(id)}`).then((j) => setO(j.order)).catch(() => null); }, [id]);
   return o ? html`<div class="or-exp"><${Receipt} o=${o} slot=${false} date=${fmtDM(o.delivered_at ?? o.updated_at)} /></div>` : html`<div class="skeleton" style="height:160px"></div>`;
+}
+
+// ---- sets ("Наборы", approved design/mockup-v5/sets-*): a saved basket of one supplier; "В корзину" adds it to the basket,
+// an optional reminder in Telegram (the order never goes by itself). Clearing the basket asks first and can be undone.
+Object.assign(STR.ru, {
+  st_title: 'Наборы', st_save: 'Сохранить как набор', st_name: 'Название набора', st_clear_name: 'Стереть название', st_taken: 'Такой набор уже есть. Придумайте другое название',
+  st_long: 'Не длиннее 40 символов', st_need_name: 'Как назовём набор?', st_now: 'сейчас {x}', st_remind: 'Напоминать', st_r_none: 'Нет', st_r_weekly: 'Каждую неделю', st_r_biweekly: 'Раз в 2 недели',
+  st_later: 'Можно включить потом. Hunt будет писать в Telegram, а заказ отправите сами', st_at: 'Во сколько', st_days: 'Дни недели',
+  st_hint: '{d} в {t} Hunt напишет {who} в Telegram. Сам заказ не уйдёт: соберёте и отправите, как обычно', st_both: 'вам обоим', st_all: 'всем вам', st_you: 'вам',
+  st_to_basket: 'В корзину', st_from: 'Из набора', st_delete: 'Удалить набор', st_delete_q: 'Удалить набор «{n}»? Корзину это не тронет', st_deleted: 'Набор удалён', st_rename: 'Переименовать',
+  st_rename_ok: 'Готово', st_saved: 'Сохранили набор «{n}»', st_added: 'Набор в корзине', st_gone: 'Этого набора больше нет', st_empty: 'Ничего из набора больше нет в прайсе',
+  st_gone_n: (n) => `${n} ${pl(n, 'позиции', 'позиций', 'позиций')} больше нет в прайсе, их не добавим`, st_cleared: (n) => `Убрали ${n} ${pl(n, 'позицию', 'позиции', 'позиций')}`,
+  st_restored: 'Вернули в корзину', st_restore_late: 'Вернуть уже нельзя', st_on: '{n} на {x}', st_by_you: 'добавляли вы', st_by_both: 'добавляли вы оба', st_by: 'добавляли {n}',
+  st_undo_hint: 'Если передумаете, можно вернуть', st_keep: 'Оставить', st_again: 'Повторить', st_empty_again: 'Корзина снова пустая', st_empty_again_s: 'всё из неё уехало в этот заказ',
+  st_rcpt_row: 'Чек, {n} · расход в Деньгах', st_rep_w: 'по {d}', st_rep_b: 'раз в 2 недели, {d}', st_w_empty: 'Пусто',
+  st_def_fruit: 'Фрукты на неделю', st_def_fish: 'Рыба на ужин', st_def_other: '{s}: как обычно',
+});
+Object.assign(STR.en, {
+  st_title: 'Sets', st_save: 'Save as a set', st_name: 'Set name', st_clear_name: 'Clear the name', st_taken: 'There is a set with this name. Pick another one',
+  st_long: 'Up to 40 characters', st_need_name: 'Name the set', st_now: 'now {x}', st_remind: 'Remind', st_r_none: 'No', st_r_weekly: 'Every week', st_r_biweekly: 'Every 2 weeks',
+  st_later: 'You can turn it on later. Hunt writes in Telegram, you send the order yourselves', st_at: 'At', st_days: 'Weekdays',
+  st_hint: '{d} at {t} Hunt messages {who} in Telegram. The order never goes by itself: you fill and send it as usual', st_both: 'you both', st_all: 'all of you', st_you: 'you',
+  st_to_basket: 'To the basket', st_from: 'From a set', st_delete: 'Delete the set', st_delete_q: 'Delete the set “{n}”? The basket stays as it is', st_deleted: 'Set deleted', st_rename: 'Rename',
+  st_rename_ok: 'Done', st_saved: 'Saved “{n}”', st_added: 'The set is in the basket', st_gone: 'This set is gone', st_empty: 'Nothing from this set is on the price list any more',
+  st_gone_n: (n) => `${n} ${pl(n, 'item is', 'items are')} no longer on the list and won’t be added`, st_cleared: (n) => `Removed ${n} ${pl(n, 'item', 'items')}`,
+  st_restored: 'Back in the basket', st_restore_late: 'Too late to bring it back', st_on: '{n} for {x}', st_by_you: 'you added them', st_by_both: 'you both added them', st_by: 'added by {n}',
+  st_undo_hint: 'Changed your mind? You can bring it back', st_keep: 'Keep', st_again: 'Repeat', st_empty_again: 'The basket is empty again', st_empty_again_s: 'everything went into this order',
+  st_rcpt_row: 'Receipt, {n} · an expense in Money', st_rep_w: 'every {d}', st_rep_b: 'every 2 weeks, {d}', st_w_empty: 'Empty',
+  st_def_fruit: 'Fruit for the week', st_def_fish: 'Fish for dinner', st_def_other: '{s}, the usual',
+});
+Object.assign(ICONS, {
+  'bookmark-plus': '<path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/><path d="M12 7v6"/><path d="M15 10H9"/>',
+  'alarm-clock': '<circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2"/><path d="M5 3 2 6"/><path d="m22 6-3-3"/><path d="M6.38 18.7 4 21"/><path d="M17.64 18.67 20 21"/>',
+});
+const SET_WD = { ru: ['пн', 'вт', 'ср', 'чт', 'пт', 'сб', 'вс'], en: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] };
+const setWd = (i) => (SET_WD[LANG] ?? SET_WD.en)[i];
+/** Sets of a supplier (or all of them), in the order they were made. */
+const ordSets = (sup) => (OR.v?.sets ?? []).filter((x) => !sup || x.supplier_id === sup);
+/** What goes into the basket: items the supplier still lists. */
+const setLines = (st) => st.lines.filter((l) => !l.gone);
+/** "по пн, чт", "раз в 2 недели, пн", "" without a reminder. */
+function setRepeatTxt(st) {
+  if (st.repeat === 'none' || !st.days) return '';
+  const d = [0, 1, 2, 3, 4, 5, 6].filter((i) => st.days & (1 << i)).map(setWd).join(', ');
+  return t(st.repeat === 'biweekly' ? 'st_rep_b' : 'st_rep_w', { d });
+}
+/** Mirrors src/order-sets.ts nameKey / defaultSetName. */
+const setKey = (s) => String(s ?? '').toLocaleLowerCase('ru').replace(/ё/g, 'е').replace(/\s+/g, ' ').trim();
+function setDefaultName(su) {
+  const base = (su?.kind === 'fruit' ? t('st_def_fruit') : su?.kind === 'fish' ? t('st_def_fish') : t('st_def_other', { s: su?.name ?? '' })).slice(0, 40);
+  const taken = new Set(ordSets().map((x) => setKey(x.name)));
+  let name = base;
+  for (let n = 2; taken.has(setKey(name)) && n < 100; n++) name = `${base.slice(0, 40 - String(n).length - 1)} ${n}`;
+  return name;
+}
+/** Live prices for lines of a set or an old order (items no longer listed drop out); as they are without the catalog. */
+const setLive = (lines) => (OR.items ? lines.map((l) => { const it = ordItem(l.item_id); return it ? { ...l, price: it.price, unsure: it.unsure, toy: it.toy ?? l.toy } : null; }).filter(Boolean) : lines.filter((l) => !l.gone));
+async function setApply(st) {
+  hap.impact('medium');
+  try {
+    await ordFlushAll();
+    const j = await ordPost('set-apply', { set_id: st.id });
+    closeSheet();
+    toast(j.gone ? `${t('st_added')}. ${t('st_gone_n', { n: j.gone })}` : t('st_added'));
+    go(sp('basket', j.supplier_id));
+  } catch (e) { toast(e.code === 'set_empty' ? t('st_empty') : e.code === 'too_many_lines' ? t('err_generic') : e.code === 'no_set' ? t('st_gone') : t('err_generic')); }
+}
+async function ordRestore(oid) {
+  try { await ordPost('restore', { order_id: oid }); hap.ok(); toast(t('st_restored')); }
+  catch (e) { toast(e.code === 'restore_expired' || e.code === 'nothing_to_restore' ? t('st_restore_late') : t('err_generic')); }
+}
+/** The repeat chips, the weekdays and the time; `onChange({repeat, days, time})` with only what changed. */
+function SetRepeat({ repeat, days, time, can = true, onChange }) {
+  return html`<div class="st-rep">
+    <h3 class="st-h3">${t('st_remind')}</h3>
+    <div class="st-chips" role="group" aria-label=${t('st_remind')}>${['none', 'weekly', 'biweekly'].map((r) => html`<button key=${r} class="or-pill" disabled=${!can} aria-pressed=${repeat === r ? 'true' : 'false'}
+      onClick=${() => repeat !== r && onChange(r === 'none' ? { repeat: r } : { repeat: r, days: days || 1 })}>${t('st_r_' + r)}</button>`)}</div>
+    ${repeat !== 'none' && html`<div class="st-days" role="group" aria-label=${t('st_days')}>${[0, 1, 2, 3, 4, 5, 6].map((i) => html`<button key=${i} class="st-day" disabled=${!can} aria-pressed=${days & (1 << i) ? 'true' : 'false'}
+        onClick=${() => { const m = days ^ (1 << i); if (m) onChange({ days: m }); }}>${setWd(i)}</button>`)}</div>
+      <div class="st-at"><span>${t('st_at')}</span><label class="st-time"><${Icon} n="alarm-clock" cls="sm" /><input type="time" value=${time} disabled=${!can} aria-label=${t('st_at')}
+        onChange=${(e) => { const v = e.currentTarget.value; if (/^\d\d:\d\d$/.test(v) && v !== time) onChange({ time: v }); }} /></label></div>`}
+  </div>`;
+}
+/** 4 · a tile of the "Наборы" row on the counter: toys, the name, the repeat or the other supplier, the range. */
+function SetTile({ st, cur }) {
+  const su = ordSup(st.supplier_id);
+  const ls = setLive(setLines(st));
+  const r = ordSpread(ls, su);
+  const rep = setRepeatTxt(st);
+  return html`<button class="st-tile" data-k=${su?.kind === 'fish' ? 'fish' : 'fruit'} onClick=${() => { hap.sel(); openSheet('ord_set', st.id); }}>
+    <span class="st-tile-art" aria-hidden="true">${ls.slice(0, 3).map((l, i) => html`<${Good} key=${l.item_id} slug=${l.toy} size=${i ? 58 : 72} rot=${ordRot(i)} shadow=${false} />`)}</span>
+    <i class="st-dot" aria-hidden="true"></i>
+    <b>${st.name}</b>
+    <span class="st-tile-s">${rep && html`<${Icon} n="repeat" cls="xs" />`}${[rep, st.supplier_id !== cur ? su?.name : null, t('or_pos', { n: ls.length })].filter(Boolean).join(' · ')}</span>
+    ${r && html`<span class="st-tile-r">${ordRangeStr(r.lo, r.hi, r.cur)}</span>`}
+  </button>`;
+}
+/** 3 · under an empty basket: "Из набора" rows of this supplier. */
+function SetRows({ sup }) {
+  const list = ordSets(sup);
+  if (!list.length || !ordCan()) return null;
+  const su = ordSup(sup);
+  return html`<section class="st-from"><h2 class="st-cap">${t('st_from')}</h2>${list.map((st) => {
+    const ls = setLive(setLines(st));
+    const r = ordSpread(ls, su);
+    return html`<div class="st-row" key=${st.id}><button class="st-row-m" onClick=${() => { hap.sel(); openSheet('ord_set', st.id); }}><span class="or-hart" aria-hidden="true">${ls.slice(0, 3).map((l, i) => html`<${Good} key=${l.item_id} slug=${l.toy} size=${40} rot=${ordRot(i)} shadow=${false} />`)}</span>
+      <span class="grow"><b>${st.name}</b><span>${[t('or_pos', { n: ls.length }), r ? ordRangeStr(r.lo, r.hi, r.cur).replace(/ /g, '\u00a0') : null].filter(Boolean).join(' · ')}</span></span></button>
+      <button class="btn surface sm" onClick=${() => setApply(st)}>${t('st_to_basket')}</button></div>`;
+  })}</section>`;
+}
+/** 2 · "Убрать всё из корзины?" with what goes and who added it; the toast afterwards brings it back. */
+function OrdClearSheet({ sup }) {
+  useStore();
+  const [busy, setBusy] = useState(false);
+  const b = ordBasket(sup);
+  const s = ordSup(sup);
+  const r = ordSpread(b.lines, s);
+  const me = D().user.id;
+  const by = [...new Set(b.lines.map((l) => l.by))];
+  const ms = by.map(memberById).filter(Boolean);
+  const who = by.length === 1 && by[0] === me ? t('st_by_you') : by.length === 2 && by.includes(me) ? t('st_by_both') : t('st_by', { n: ms.map((m) => firstName(m.name)).join(', ') });
+  const clear = async () => {
+    setBusy(true);
+    try {
+      await ordFlushAll();
+      const id = OR.v.baskets.find((x) => x.supplier_id === sup)?.id ?? '';
+      const j = await ordPost('clear', { order_id: id });
+      closeSheet();
+      hap.ok();
+      if (j.cleared) toast(t('st_cleared', { n: j.cleared.n }), { label: t('undo'), icon: 'undo', run: () => ordRestore(j.cleared.order_id) }, 8000);
+    } catch { toast(t('err_generic')); }
+    setBusy(false);
+  };
+  return html`<div class="st-clear-h"><h2>${t('or_clear_q')}</h2><span class="st-avs" aria-hidden="true">${ms.slice(0, 3).map((m) => html`<${Av} key=${m.user_id} m=${m} size=${44} free />`)}</span></div>
+    <p class="st-p">${[r ? t('st_on', { n: t('or_pos', { n: b.count }), x: ordRangeStr(r.lo, r.hi, r.cur) }) : t('or_pos', { n: b.count }), ms.length ? who : null].filter(Boolean).join(', ')}.<br />${t('st_undo_hint')}</p>
+    <div class="st-col"><button class="btn accent big block" disabled=${busy || !b.count} onClick=${clear}><${Icon} n="trash-2" cls="sm" />${t('or_clear')}</button>
+      <button class="btn surface big block" onClick=${closeSheet}>${t('st_keep')}</button></div>`;
+}
+/** 6 · "Сохранить как набор" from the basket (`from` = its id) or from an earlier order (`lines` = its lines). */
+function OrdSaveSheet({ arg }) {
+  useOrders(true);
+  const su = ordSup(arg.sup);
+  const [name, setName] = useState(() => setDefaultName(su));
+  const [sc, setSc] = useState({ repeat: 'none', days: 1, time: '09:00' });
+  const [err, setErr] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const ls = setLive(arg.lines ?? ordBasket(arg.sup).lines);
+  const r = ordSpread(ls, su);
+  const save = async () => {
+    const n = name.trim();
+    if (!n) { setErr(t('st_need_name')); return; }
+    setBusy(true);
+    try {
+      await ordPost('set-save', { from_order_id: arg.from, name: n, repeat: sc.repeat, ...(sc.repeat !== 'none' ? { days: sc.days, time: sc.time } : {}) });
+      hap.ok();
+      closeSheet();
+      toast(t('st_saved', { n }));
+    } catch (e) {
+      if (e.code === 'name_taken') setErr(t('st_taken')); else if (e.code === 'too_long') setErr(t('st_long')); else toast(t('err_generic'));
+    }
+    setBusy(false);
+  };
+  return html`<h2>${t('st_save')}</h2>
+    <label class="st-in"><input class="st-input" maxlength="40" value=${name} aria-label=${t('st_name')} aria-invalid=${err ? 'true' : 'false'} enterkeyhint="done"
+      onInput=${(e) => { setName(e.currentTarget.value); setErr(null); }} onKeyDown=${(e) => e.key === 'Enter' && save()} />${name && html`<button class="st-x" aria-label=${t('st_clear_name')} onClick=${() => { setName(''); setErr(null); }}><${Icon} n="x" cls="sm" /></button>`}</label>
+    ${err && html`<p class="st-err" role="alert">${err}</p>`}
+    <div class="st-sum"><span class="st-sum-art" aria-hidden="true">${ls.slice(0, 4).map((l, i) => html`<${Good} key=${l.item_id} slug=${l.toy} size=${58} rot=${ordRot(i)} shadow=${false} />`)}</span>
+      <span class="grow"><b>${[su?.name, t('or_pos', { n: ls.length })].filter(Boolean).join(', ')}</b>${r && html`<span>${t('st_now', { x: ordRangeStr(r.lo, r.hi, r.cur) })}</span>`}</span></div>
+    <${SetRepeat} repeat=${sc.repeat} days=${sc.days} time=${sc.time} onChange=${(x) => setSc((o) => ({ ...o, ...x }))} />
+    <p class="st-hint0">${t('st_later')}</p>
+    <div class="st-btns"><button class="btn accent big grow" disabled=${busy || !ls.length} onClick=${save}><${Icon} n="bookmark-plus" cls="sm" />${t('or_save')}</button>
+      <button class="btn surface big" onClick=${closeSheet}>${t('cancel')}</button></div>`;
+}
+/** 5 · one set: rename, what is in it, the money, the reminder (saved as you tap), "В корзину", delete. */
+function OrdSetSheet({ id }) {
+  useStore();
+  useOrders(true);
+  const [edit, setEdit] = useState(false);
+  const [name, setName] = useState('');
+  const [err, setErr] = useState(null);
+  const st = ordSets().find((x) => x.id === id);
+  if (!st) return html`<h2>${t('st_gone')}</h2><button class="btn ghost block" onClick=${closeSheet}>${t('close')}</button>`;
+  const su = ordSup(st.supplier_id);
+  const ls = setLive(setLines(st));
+  const gone = st.lines.length - ls.length;
+  const r = ordSpread(ls, su);
+  const can = ordCan();
+  const rep = setRepeatTxt(st);
+  const patch = async (body) => {
+    try { await ordPost('set-edit', { set_id: st.id, ...body }); hap.sel(); return true; }
+    catch (e) { if (e.code === 'name_taken') setErr(t('st_taken')); else if (e.code === 'too_long') setErr(t('st_long')); else toast(t('err_generic')); return false; }
+  };
+  const saveName = async () => {
+    const n = name.trim();
+    if (!n || n === st.name) { setEdit(false); setErr(null); return; }
+    if (await patch({ name: n })) { setEdit(false); setErr(null); }
+  };
+  const del = async () => {
+    if (!(await askConfirm(t('st_delete_q', { n: st.name })))) return;
+    try { await ordPost('set-delete', { set_id: st.id }); closeSheet(); toast(t('st_deleted')); } catch { toast(t('err_generic')); }
+  };
+  const n = votersN();
+  const hint = st.repeat !== 'none' && st.next
+    ? t('st_hint', { d: `${dfmt(st.next.day, { weekday: 'short' }).replace('.', '')} ${fmtDM(st.next.day)}`, t: hm(st.next.time), who: t(n === 2 ? 'st_both' : n > 2 ? 'st_all' : 'st_you') }) : null;
+  return html`<div class="st-sh-h">
+      ${edit ? html`<input class="st-input st-name-in" maxlength="40" value=${name} aria-label=${t('st_name')} enterkeyhint="done" ref=${(el) => el && !el.dataset.f && (el.dataset.f = 1, el.focus())}
+          onInput=${(e) => { setName(e.currentTarget.value); setErr(null); }} onKeyDown=${(e) => { if (e.key === 'Enter') saveName(); if (e.key === 'Escape') { e.stopPropagation(); setEdit(false); setErr(null); } }} />`
+        : html`<h2 class="st-name">${st.name}</h2>`}
+      ${can && html`<button class="round st-edit" aria-label=${edit ? t('st_rename_ok') : t('st_rename')} onClick=${() => (edit ? saveName() : (setName(st.name), setErr(null), setEdit(true)))}><${Icon} n=${edit ? 'check' : 'pencil'} /></button>`}</div>
+    ${err && html`<p class="st-err" role="alert">${err}</p>`}
+    <p class="st-sub">${[su?.name, t('or_pos', { n: ls.length })].filter(Boolean).join(' · ')}${rep && html`<span class="st-sub-r"> · <${Icon} n="repeat" cls="sm" />${rep}</span>`}</p>
+    <div class="st-strip" aria-hidden="true">${ls.slice(0, 7).map((l, i) => html`<${Good} key=${l.item_id} slug=${l.toy} size=${62} rot=${ordRot(i)} shadow=${false} />`)}${ls.length > 7 && html`<span class="st-more">+${ls.length - 7}</span>`}</div>
+    <p class="st-names">${ordNames(ls, 7)}</p>
+    ${gone > 0 && html`<p class="st-gone">${t('st_gone_n', { n: gone })}</p>`}
+    ${r && html`<${OrdSpread} sp=${r} bare />`}
+    <${SetRepeat} repeat=${st.repeat} days=${st.days} time=${st.time} can=${can} onChange=${patch} />
+    ${hint && html`<p class="st-hint"><${Icon} n="send" cls="sm" /><span>${hint}</span></p>`}
+    ${can && html`<div class="st-btns"><button class="btn accent big grow" disabled=${!ls.length} onClick=${() => setApply(st)}><${Icon} n="basket" cls="sm" />${t('st_to_basket')}</button>
+      <button class="round st-del" aria-label=${t('st_delete')} onClick=${del}><${Icon} n="trash-2" /></button></div>`}`;
+}
+/** The Telegram reminder's "Собрать корзину" lands here: the set goes into the basket, then the basket opens. */
+function SetApplyScreen({ id }) {
+  const { v } = useOrders();
+  const [fail, setFail] = useState(null);
+  useEffect(() => {
+    if (!v) return undefined;
+    let live = true;
+    ordPost('set-apply', { set_id: id }).then((j) => { if (!live) return; toast(j.gone ? `${t('st_added')}. ${t('st_gone_n', { n: j.gone })}` : t('st_added')); go(sp('basket', j.supplier_id), true); })
+      .catch((e) => live && setFail(e.code ?? 'x'));
+    return () => { live = false; };
+  }, [!!v, id]);
+  if (fail) return html`<main class="screen no-nav or-scr"><${BackRound} />${msgCard(fail === 'no_set' ? t('st_gone') : fail === 'set_empty' ? t('st_empty') : fail === 'viewer' ? t('or_view_only') : t('err_generic'))}
+    <button class="btn accent" onClick=${() => go(sp('shop'), true)}>${t('or_to_shop')}</button></main>`;
+  return html`<main class="screen no-nav or-scr"><${BackRound} />${skel(420)}</main>`;
 }
 
 // ---- orders hub: what is on its way, the suppliers, the receipts
@@ -9370,6 +9623,9 @@ function Sheet() {
   if (sh.kind === 'ev_ticket') body = html`<${EvTicketSheet} key=${sh.arg?.key} o=${sh.arg} />`;
   if (sh.kind === 'ord_conf') body = html`<${OrdConfSheet} key=${sh.arg.o.id} o=${sh.arg.o} />`; // wave 10
   if (sh.kind === 'ord_paid') body = html`<${OrdPaidSheet} key=${sh.arg.o.id} o=${sh.arg.o} />`;
+  if (sh.kind === 'ord_clear') body = html`<${OrdClearSheet} key=${sh.arg} sup=${sh.arg} />`; // sets (design/mockup-v5/sets-*)
+  if (sh.kind === 'ord_save') body = html`<${OrdSaveSheet} key=${sh.arg.from} arg=${sh.arg} />`;
+  if (sh.kind === 'ord_set') body = html`<${OrdSetSheet} key=${sh.arg} id=${sh.arg} />`;
   if (sh.kind === 'pp_stage') body = html`<${StageSheet} />`; // wave 6 · A
   if (sh.kind === 'gcontact') body = html`<${GuestContactSheet} key=${sh.arg} id=${sh.arg} />`;
   if (sh.kind === 'late') {
@@ -9439,7 +9695,7 @@ function App() {
   const d = S.data;
   let view;
   if (S.error?.status === 401 && !inTG && !linkKey) {
-    return html`<${Door} onIn=${() => { S.error = null; S.data = null; emit(); load(route.sid ?? null); }} />${S.toast && html`<div class="toast" role="status">${S.toast}</div>`}`;
+    return html`<${Door} onIn=${() => { S.error = null; S.data = null; emit(); load(route.sid ?? null); }} /><${ToastEl} />`;
   }
   if (S.error && (!d || (route.sid && d.search?.id !== route.sid))) {
     const msg = S.error.status === 401 ? t('err_auth') : S.error.code === 'not_member' ? t('err_member') : t('err_generic');
@@ -9509,6 +9765,7 @@ function App() {
       basket: () => html`<${BasketScreen} key=${a} id=${a} />`,
       'order-check': () => html`<${OrderCheck} key=${a} id=${a} />`,
       order: () => html`<${OrderScreen} key=${a} id=${a} />`,
+      'set-apply': () => html`<${SetApplyScreen} key=${a} id=${a} />`,
       guide: () => html`<${GuideMember} />`,
       next: () => html`<${NextScreen} />`,
       nego: () => html`<${NegoScreen} id=${a} />`,
@@ -9525,10 +9782,10 @@ function App() {
   const onDesk = wide && d?.search && d.me && d.me.role !== 'guest' && (!route.sid || d.search.id === route.sid) && route.sid && !(!d.me.reveal_seen && d.me.animal);
   const tone = onDesk ? deskTone(route.screen, tone0, route.arg) : tone0;
   useEffect(() => applyTone(tone), [tone]);
-  if (onDesk) return html`<${Desk} route=${route} view=${view} /><${Sheet} />${S.toast && html`<div class="toast" role="status">${S.toast}</div>`}`;
-  if (wide && route.screen === 'newproject') return html`${view}<${Sheet} />${S.toast && html`<div class="toast" role="status">${S.toast}</div>`}`;
+  if (onDesk) return html`<${Desk} route=${route} view=${view} /><${Sheet} /><${ToastEl} />`;
+  if (wide && route.screen === 'newproject') return html`${view}<${Sheet} /><${ToastEl} />`;
   const bar = route.screen !== 'newproject' && !(d?.me && !d.me.reveal_seen && d.me.animal && d.me.role !== 'guest') && html`<${TopBar} screen=${route.screen === 'picker' || !d?.search ? 'picker' : route.screen} />`;
-  return html`${bar}${view}<${Sheet} />${S.toast && html`<div class="toast" role="status">${S.toast}</div>`}`;
+  return html`${bar}${view}<${Sheet} /><${ToastEl} />`;
 }
 
 // ---------------------------------------------------------------- boot

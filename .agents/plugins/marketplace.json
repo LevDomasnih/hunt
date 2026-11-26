@@ -1,0 +1,12 @@
+{
+  "name": "hunt",
+  "interface": { "displayName": "Hunt" },
+  "plugins": [
+    {
+      "name": "hunt",
+      "source": { "source": "local", "path": "./plugins/hunt" },
+      "policy": { "installation": "AVAILABLE", "authentication": "ON_INSTALL" },
+      "category": "Productivity"
+    }
+  ]
+}

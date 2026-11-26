@@ -76,6 +76,8 @@ cd hunt-app/crm && npm ci && HUNT_REGIONS=../../hunt-data/regions npm run dev
 /hunt:new Tbilisi
 ```
 
+**In Codex** instead of Claude Code: `codex plugin marketplace add LevDomasnih/hunt-app`, then `codex plugin add hunt@hunt` (or `/plugins` in the TUI). Commands become skills: `$hunt:new Tbilisi`. More in [CODEX.md](plugins/hunt/docs/CODEX.md).
+
 **Your own server.** About ten minutes on Cloudflare's free tier: [crm/README.md](crm/README.md).
 
 ## Commands

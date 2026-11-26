@@ -5,7 +5,7 @@ description: First-time Hunt setup and starting a new search — connect to a Hu
 
 # Onboarding
 
-Ask with buttons (AskUserQuestion), a few questions at a time. Questions and privacy levels: `docs/questionnaire.yaml` (also bundled as `questionnaire.yaml` next to this skill if present).
+Ask with buttons where the client has them (AskUserQuestion in Claude Code), otherwise as a short numbered list, a few questions at a time. Questions and privacy levels: `docs/questionnaire.yaml` (also bundled as `questionnaire.yaml` next to this skill if present).
 
 ## 1. CRM
 
@@ -51,4 +51,4 @@ When the members chose "new" in the "what next" vote (`next_new`), don't start f
 
 ## 6. Rhythm
 
-Offer to schedule a run every 30 minutes during the day (Claude Code scheduled task or `/loop`) that does the tick from skill `hunt`. Explain: the computer must be on; approvals and votes work from the phone at any time.
+Offer to schedule a run every 30 minutes during the day (Claude Code: a scheduled task or `/loop`; Codex: an automation in the Codex app, or cron/launchd running `codex exec` with the tick request) that does the tick from skill `hunt`. Explain: the computer must be on; approvals and votes work from the phone at any time.
