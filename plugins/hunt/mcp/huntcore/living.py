@@ -127,7 +127,7 @@ async def guide_set(
         raise ToolError("map_url must be an http(s) link.")
     # The Wi-Fi password is a secret by design: check it only for ID/card-like numbers, not for being a password.
     # map links carry long ids that can look like card numbers.
-    check = {k: v for k, v in body.items() if k not in ("wifi_password", "map_url")}
+    check = {k: v for k, v in body.items() if k not in ("wifi_password", "map_url")}  # ggignore: a field name, not a secret
     if wifi_password:
         check["wifi"] = wifi_password
     bad = _deals.sensitive_findings(check)
