@@ -1,0 +1,73 @@
+# Checks on every push and pull request. The countries come from hunt-data, cloned next to this repository as in development.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  server:
+    name: server, site and registry
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: hunt
+      - uses: actions/checkout@v4
+        with:
+          repository: LevDomasnih/hunt-data
+          path: hunt-data
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: hunt/crm/package-lock.json
+      - name: Install
+        working-directory: hunt/crm
+        run: npm ci --no-audit --no-fund
+      - name: Types
+        working-directory: hunt/crm
+        run: npx tsc --noEmit -p .
+      - name: Site (static checks)
+        working-directory: hunt/crm
+        run: node scripts/test-web.mjs
+      - name: Households (local worker, throwaway database)
+        working-directory: hunt/crm
+        run: npm run test:households
+      - name: Sources registry
+        working-directory: hunt
+        run: node registry/scripts/test.mjs
+      - name: Unit tests (orders, sets, parties, afisha ranking)
+        working-directory: hunt/crm
+        run: for f in scripts/test-*-pure.mts scripts/test-*-rank.mts; do node --experimental-strip-types "$f"; done
+      - name: Codex skills are fresh
+        working-directory: hunt
+        run: node scripts/codex-skills.mjs --check
+
+  plugin:
+    name: plugin
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: hunt
+      - uses: actions/checkout@v4
+        with:
+          repository: LevDomasnih/hunt-data
+          path: hunt-data
+      - uses: astral-sh/setup-uv@v6
+      - name: Plugin tests
+        working-directory: hunt/plugins/hunt/mcp
+        run: >-
+          uv run --no-project --python 3.12 --with pytest --with httpx --with pyyaml --with mcp --with keyring
+          --with telethon --with qrcode --with pypng --with pillow pytest -q tests
