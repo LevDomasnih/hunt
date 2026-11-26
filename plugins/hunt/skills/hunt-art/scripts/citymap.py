@@ -1,6 +1,6 @@
 # /// script
 # requires-python = ">=3.11"
-# dependencies = ["playwright==1.60.0", "pillow==11.3.0", "pyyaml==6.0.2", "numpy==2.3.3", "shapely==2.1.2", "h3==4.3.1"]
+# dependencies = ["playwright==1.60.0", "pillow==11.3.0", "pyyaml==6.0.2", "numpy==2.3.3", "shapely==2.1.2", "h3==4.3.1", "certifi==2025.8.3"]
 # ///
 """Hunt city map: the toy land of one city in 3D — the pack's districts minus rivers, cut into blocks by the real streets and raised
 by their buildings, parks with trees, a few landmarks. The picture has no words: the app draws the district signs, river names and
@@ -13,12 +13,14 @@ prices itself through the affine map in the JSON (lon, lat -> pixel).
 PACK/art/citymap.yaml (optional) per city: join (close gaps between areas, degrees), extend (bounding boxes [w, s, e, n] where
 populated land joins the city, e.g. a bank of a river), names (short district names), pins (lon, lat of a sign), rivers
 (name_ru, name_en, lon, lat, rotation), labels (id, name_ru, name_en, lon, lat: signs for places that are not pack areas),
-landmarks (kind, name, lon, lat; kinds in citymap/houses.js), country (Kontur id, e.g. serbia), names_en (short English names).
+landmarks (kind, name, lon, lat; kinds in citymap/houses.js), country (Kontur id, e.g. serbia), names_en (short English names),
+skip (area ids left off the map, e.g. a town 100 km away), clip (boxes [w, s, e, n]: huge districts are cut to the town part),
+trim (people per 400 m cell: the land ends where fewer live, a soft edge instead of the clip box).
 Data: © OpenStreetMap contributors (ODbL), Kontur Population (CC BY 4.0). Reads public APIs politely: one request at a time, retries.
 """
 from __future__ import annotations
 
-import argparse, asyncio, base64, csv, glob, gzip, io, json, math, mimetypes, os, re, sqlite3, statistics, sys, time
+import argparse, asyncio, base64, csv, glob, gzip, io, json, math, mimetypes, os, re, sqlite3, ssl, statistics, sys, time
 import urllib.parse, urllib.request
 from pathlib import Path
 
@@ -26,21 +28,34 @@ import yaml
 
 HERE = Path(__file__).resolve().parent
 CACHE = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "hunt" / "art" / "citymap"
-HOSTS = ["https://overpass-api.de/api/interpreter", "https://overpass.kumi.systems/api/interpreter", "https://overpass.private.coffee/api/interpreter"]
+HOSTS = ["https://maps.mail.ru/osm/tools/overpass/api/interpreter", "https://overpass-api.de/api/interpreter", "https://overpass.kumi.systems/api/interpreter", "https://overpass.private.coffee/api/interpreter"]
 UA = {"User-Agent": "HuntCityMap/1.0 (+read-only)"}
+
+
+def tls():
+    import certifi   # the Python build may come without a CA store
+    return ssl.create_default_context(cafile=certifi.where())
 
 
 def cfg_of(pack: Path, city: str) -> dict:
     f = pack / "art" / "citymap.yaml"
     c = ((yaml.safe_load(f.read_text()) or {}).get(city) or {}) if f.exists() else {}
-    return {"join": 0, "extend": [], "names": {}, "pins": {}, "rivers": [], "landmarks": [], "country": None, **c}
+    return {"join": 0, "extend": [], "names": {}, "pins": {}, "rivers": [], "landmarks": [], "country": None, "skip": [], "clip": [], **c}
 
 
 def areas_of(pack: Path, city: str):
-    from shapely.geometry import shape
+    """The city's areas, minus `skip` (areas too far to share one map) and cut to the `clip` boxes (huge districts: only the town part)."""
+    from shapely.geometry import box, shape
+    from shapely.ops import unary_union
+    c = cfg_of(pack, city)
     gj = json.loads((pack / "districts.geojson").read_text())
     dy = yaml.safe_load((pack / "districts.yaml").read_text())["areas"]
-    return {f["properties"]["id"]: shape(f["geometry"]).buffer(0) for f in gj["features"] if dy.get(f["properties"]["id"], {}).get("city") == city}, dy
+    out = {f["properties"]["id"]: shape(f["geometry"]).buffer(0) for f in gj["features"] if dy.get(f["properties"]["id"], {}).get("city") == city and f["properties"]["id"] not in c["skip"]}
+    if c["clip"]:
+        cl = unary_union([box(*b) for b in c["clip"]])
+        out = {k: a.intersection(cl).buffer(0) for k, a in out.items()}
+        out = {k: a for k, a in out.items() if a.area > 1e-6}
+    return out, dy
 
 
 # ---------------------------------------------------------------- fetch
@@ -50,7 +65,7 @@ def overpass(body: str, out: Path, ok) -> bool:
     for _ in range(5):
         for h in HOSTS:
             try:
-                r = urllib.request.urlopen(urllib.request.Request(h, data=urllib.parse.urlencode({"data": body}).encode(), headers=UA), timeout=280).read()
+                r = urllib.request.urlopen(urllib.request.Request(h, data=urllib.parse.urlencode({"data": body}).encode(), headers=UA), timeout=280, context=tls()).read()
                 if ok(r):
                     out.write_bytes(r); print(" ", out.name, f"{len(r) // 1024} KB", flush=True); return True
             except Exception as e:  # busy mirrors answer 429/504 or close the connection
@@ -84,11 +99,14 @@ def fetch(pack: Path, city: str) -> None:
             t = f"{S + (N - S) * i / n:.4f},{W + (E - W) * j / n:.4f},{S + (N - S) * (i + 1) / n:.4f},{W + (E - W) * (j + 1) / n:.4f}"
             overpass(f'[out:csv(::lat,::lon,"building:levels","building";false)][timeout:250];way["building"]({t});out center;', D / f"bld-{i}{j}.csv", CSV)
             overpass(f'[out:json][timeout:250];way["highway"~"^(residential|living_street)$"]({t});out geom;', D / f"res-{i}{j}.json", J)
-    if c["country"] and not (D / "kontur.gpkg").exists():
-        meta = json.loads(urllib.request.urlopen(urllib.request.Request(f"https://data.humdata.org/api/3/action/package_show?id=kontur-population-{c['country']}", headers=UA), timeout=60).read())
-        url = sorted(r["url"] for r in meta["result"]["resources"] if r["url"].endswith(".gpkg.gz"))[-1]
-        (D / "kontur.gpkg").write_bytes(gzip.decompress(urllib.request.urlopen(urllib.request.Request(url, headers=UA), timeout=600).read()))
-        print("  kontur", url.rsplit("/", 1)[1], flush=True)
+    if c["country"] and not (D / "kontur.gpkg").exists():   # one download per country, shared by its cities
+        K = CACHE / f"kontur-{c['country']}.gpkg"
+        if not K.exists():
+            meta = json.loads(urllib.request.urlopen(urllib.request.Request(f"https://data.humdata.org/api/3/action/package_show?id=kontur-population-{c['country']}", headers=UA), timeout=60, context=tls()).read())
+            url = sorted(r["url"] for r in meta["result"]["resources"] if r["url"].endswith(".gpkg.gz"))[-1]
+            K.write_bytes(gzip.decompress(urllib.request.urlopen(urllib.request.Request(url, headers=UA), timeout=600, context=tls()).read()))
+            print("  kontur", url.rsplit("/", 1)[1], flush=True)
+        (D / "kontur.gpkg").symlink_to(K)
     (D / "frame.json").write_text(json.dumps([W, S, E, N]))
 
 
@@ -120,6 +138,15 @@ def prepare(pack: Path, city: str) -> dict:
         cells = [Polygon([(lo, la) for la, lo in h3.cell_to_boundary(cid)]) for lo, la, p, cid in POP if b[0] < lo < b[2] and b[1] < la < b[3] and p > 1500]
         if cells:
             land = unary_union([land, unary_union(cells).buffer(0.002).buffer(-0.0016)])
+    if c.get("trim"):   # the edge follows where people live: 400 m cells with more than `trim` people, softened
+        cells = [Polygon([(lo, la) for la, lo in h3.cell_to_boundary(cid)]) for lo, la, p, cid in POP if p > c["trim"]]
+        if cells:
+            town = unary_union(cells).buffer(0.0045).buffer(-0.0065).buffer(0.003)
+            town = unary_union([Polygon(g.exterior) for g in (town.geoms if hasattr(town, "geoms") else [town])])   # parks inside stay land
+            land = land.intersection(town).buffer(0)
+            if hasattr(land, "geoms"):   # no crumbs cut off by the edge
+                big = max(g.area for g in land.geoms)
+                land = unary_union([g for g in land.geoms if g.area > big * 0.02])
     water = []
     for e in J("water.json")["elements"]:
         t = e.get("tags", {})
@@ -214,7 +241,7 @@ def prepare(pack: Path, city: str) -> dict:
                 lines.append(LineString([(q["lon"], q["lat"]) for q in e["geometry"]]))
     blocks = []
     if lines:
-        holes = unary_union([gu.buffer(0.0002)] + [Point(lo, la).buffer(0.0016 if k in ("fortress", "arena", "wat", "palace") else 0.0011) for k, n, lo, la in LM])
+        holes = unary_union([gu.buffer(0.0002)] + [Point(lo, la).buffer(0.0016 if k in ("fortress", "arena", "wat", "palace", "mosque", "chedi", "pura", "khanshatyr", "buddha", "statue") else 0.0011) for k, n, lo, la in LM])
         pts = [Point(q[0], q[1]) for q in RAW]; tree = STRtree(pts) if pts else None
         ppts = [Point(q[0], q[1]) for q in POP]; ptree = STRtree(ppts) if ppts else None
         def lvl(v):
@@ -232,6 +259,8 @@ def prepare(pack: Path, city: str) -> dict:
                 lvs = [v for v in (lvl(RAW[i][2]) for i in idx) if v]
                 lv = statistics.median(lvs) if lvs else (2 if len(idx) else 0)
                 dens = len(idx) / max(part.area / 1e-6, 0.05)
+                if len(lvs) >= 2 and lv >= 5:   # a few big towers on a superblock (new centres) are still city, not a field
+                    dens = max(dens, 8)
                 near = ptree.query(part.buffer(0.002)) if ptree is not None else []
                 popd = (sum(POP[i][2] for i in near) / len(near)) / 0.74 if len(near) else 0
                 if len(idx) < 6 and popd > 3000:

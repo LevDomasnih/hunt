@@ -124,6 +124,66 @@ export function landmark(kind, s = 1) {
     const hall = new THREE.Mesh(new THREE.BoxGeometry(18, 6, 11), W('#F7F5F0')); hall.position.y = 3; g.add(hall);
     [['#E8823A', 20, 13, 6], ['#4E9A6A', 15, 10, 9.5], ['#E8823A', 10, 7, 12.5]].forEach(([c, w, d, y]) => { const r = new THREE.Mesh(new THREE.ConeGeometry(Math.hypot(w, d) / 2, 4, 4), W(c)); r.rotation.y = Math.PI / 4; r.scale.set(w / Math.hypot(w, d) * 1.414, 1, d / Math.hypot(w, d) * 1.414); r.position.y = y; g.add(r); });
     const sp = new THREE.Mesh(new THREE.ConeGeometry(1.2, 9, 10), W('#E8B83A')); sp.position.y = 18; g.add(sp);
+  } else if (kind === 'mosque') {     // a big grey dome on a square hall, half domes, four pencil minarets
+    const wall = W('#F2EAE0'), lead = W('#9AA3AD');
+    const hall = new THREE.Mesh(new THREE.BoxGeometry(22, 10, 22), wall); hall.position.y = 5; g.add(hall);
+    const dr = new THREE.Mesh(new THREE.CylinderGeometry(8, 8.6, 4, 28), wall); dr.position.y = 12; g.add(dr);
+    const dm = new THREE.Mesh(new THREE.SphereGeometry(8.4, 28, 14, 0, Math.PI * 2, 0, Math.PI / 2), lead); dm.position.y = 14; g.add(dm);
+    for (const [x, z] of [[0, 9], [0, -9]]) { const h = new THREE.Mesh(new THREE.SphereGeometry(5, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2), lead); h.position.set(x, 10, z); g.add(h); }
+    const fin = new THREE.Mesh(new THREE.ConeGeometry(0.5, 3, 8), W('#E8B83A')); fin.position.y = 23.5; g.add(fin);
+    for (const [x, z] of [[-14, -14], [14, -14], [-14, 14], [14, 14]]) {
+      const m = new THREE.Mesh(new THREE.CylinderGeometry(1.3, 1.5, 30, 12), wall); m.position.set(x, 15, z); g.add(m);
+      const b = new THREE.Mesh(new THREE.CylinderGeometry(2.1, 2.1, 1, 12), wall); b.position.set(x, 22, z); g.add(b);
+      const c = new THREE.Mesh(new THREE.ConeGeometry(1.5, 6, 12), lead); c.position.set(x, 33, z); g.add(c);
+    }
+  } else if (kind === 'galata') {     // a round stone tower with a balcony and a pointed grey cap
+    const t = new THREE.Mesh(new THREE.CylinderGeometry(5.2, 5.8, 32, 20), W('#D8C9AE')); t.position.y = 16; g.add(t);
+    const b = new THREE.Mesh(new THREE.CylinderGeometry(6.4, 6.4, 1.4, 20), W('#B9AC94')); b.position.y = 32.5; g.add(b);
+    const r = new THREE.Mesh(new THREE.CylinderGeometry(5, 5, 4, 20), W('#EFE7D6')); r.position.y = 35; g.add(r);
+    const c = new THREE.Mesh(new THREE.ConeGeometry(5.6, 12, 20), W('#8C97A3')); c.position.y = 43; g.add(c);
+  } else if (kind === 'minaret') {    // a fluted brick minaret on a square stone base
+    const base = new THREE.Mesh(new THREE.BoxGeometry(9, 8, 9), W('#D8C9AE')); base.position.y = 4; g.add(base);
+    const t = new THREE.Mesh(new THREE.CylinderGeometry(2.8, 3.6, 30, 8), W('#C9785A')); t.position.y = 23; g.add(t);
+    const b = new THREE.Mesh(new THREE.CylinderGeometry(4, 4, 1.2, 12), W('#EFE7D6')); b.position.y = 36; g.add(b);
+    const c = new THREE.Mesh(new THREE.ConeGeometry(2.6, 7, 12), W('#8C97A3')); c.position.y = 40.5; g.add(c);
+  } else if (kind === 'baiterek') {   // a white tree-tower holding a gold sphere
+    const col = new THREE.Mesh(new THREE.CylinderGeometry(1.6, 3.2, 52, 16), W('#F7F5F0')); col.position.y = 26; g.add(col);
+    for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2, rib = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.9, 54, 6), W('#FFFFFF')); rib.position.set(Math.cos(a) * 3.6, 27, Math.sin(a) * 3.6); rib.rotation.set(Math.sin(a) * 0.06, 0, -Math.cos(a) * 0.06); g.add(rib); }
+    for (let i = 0; i < 10; i++) { const a = i / 10 * Math.PI * 2, br = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.6, 9, 6), W('#FFFFFF')); br.position.set(Math.cos(a) * 5, 56, Math.sin(a) * 5); br.rotation.set(Math.sin(a) * 0.6, 0, -Math.cos(a) * 0.6); g.add(br); }
+    const ball = new THREE.Mesh(new THREE.SphereGeometry(7, 28, 18), mat('#F2C230', { glass: true })); ball.position.y = 61; g.add(ball);
+  } else if (kind === 'khanshatyr') { // a tall leaning glass tent
+    const t = new THREE.Mesh(new THREE.ConeGeometry(17, 44, 3, 1), mat('#E8F1F6', { map: winTex(10, 12, true), glass: true })); t.scale.set(1, 1, 0.8); t.position.y = 22; t.rotation.z = 0.08; g.add(t);
+    const sp = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.4, 10, 6), W('#5F5C56')); sp.position.set(-1.8, 48, 0); sp.rotation.z = 0.08; g.add(sp);
+  } else if (kind === 'tvtower') {    // a tall red and white mast with a platform
+    const n = 6; for (let i = 0; i < n; i++) { const r0 = 4.2 - i * 0.6, s = new THREE.Mesh(new THREE.CylinderGeometry(r0 - 0.6, r0, 12, 4), W(i % 2 ? '#F7F5F0' : '#D9573F')); s.rotation.y = Math.PI / 4; s.position.y = 6 + i * 12; g.add(s); }
+    const p = new THREE.Mesh(new THREE.CylinderGeometry(4.4, 4.4, 2.4, 16), W('#F7F5F0')); p.position.y = 50; g.add(p);
+    const sp = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.5, 16, 6), W('#D9573F')); sp.position.y = 80; g.add(sp);
+  } else if (kind === 'alphabet') {   // a slim white double spiral with a silver ball on top
+    const core = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 1.2, 60, 10), W('#DDE6F2')); core.position.y = 30; g.add(core);
+    for (let i = 0; i < 48; i++) for (const ph of [0, Math.PI]) { const a = i * 0.42 + ph, s = new THREE.Mesh(new THREE.BoxGeometry(1.6, 1, 1.6), W('#FFFFFF')); s.position.set(Math.cos(a) * 3.6, 2 + i * 1.2, Math.sin(a) * 3.6); g.add(s); }
+    const ball = new THREE.Mesh(new THREE.SphereGeometry(4.2, 24, 16), mat('#E3F1FA', { glass: true })); ball.position.y = 64; g.add(ball);
+  } else if (kind === 'buddha') {     // a big white seated Buddha on a hill top terrace
+    const st = W('#F7F5F0'), base = new THREE.Mesh(new THREE.CylinderGeometry(12, 13, 4, 24), W('#E6DFD2')); base.position.y = 2; g.add(base);
+    const lap = new THREE.Mesh(new THREE.SphereGeometry(10, 24, 12), st); lap.scale.set(1, 0.42, 0.8); lap.position.y = 6.5; g.add(lap);
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(4.6, 7, 14, 20), st); body.position.y = 14; g.add(body);
+    const head = new THREE.Mesh(new THREE.SphereGeometry(3.6, 20, 14), st); head.position.y = 24; g.add(head);
+    const top = new THREE.Mesh(new THREE.ConeGeometry(1.4, 3.4, 12), st); top.position.y = 28.6; g.add(top);
+  } else if (kind === 'statue') {     // a tall copper-green statue with spread wings on a stone pedestal
+    const ped = new THREE.Mesh(new THREE.CylinderGeometry(9, 11, 14, 8), W('#D8CCB4')); ped.position.y = 7; g.add(ped);
+    const cu = W('#5E9E8A'), body = new THREE.Mesh(new THREE.CylinderGeometry(3, 5, 26, 12), cu); body.position.y = 27; g.add(body);
+    for (const s of [-1, 1]) { const w = new THREE.Mesh(new THREE.BoxGeometry(16, 10, 1.6), cu); w.position.set(s * 9, 30, 0); w.rotation.z = s * -0.45; g.add(w); }
+    const head = new THREE.Mesh(new THREE.SphereGeometry(3.2, 16, 12), cu); head.position.y = 42; g.add(head);
+    const crown = new THREE.Mesh(new THREE.ConeGeometry(2, 4.5, 10), W('#E8B83A')); crown.position.y = 46.5; g.add(crown);
+  } else if (kind === 'chedi') {      // a big stepped brick chedi on a square base, a gold bell on top
+    const brick = W('#C98F6B'); let y = 0;
+    for (const [w, h] of [[30, 5], [24, 5], [18, 5]]) { const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, w), brick); b.position.y = y + h / 2; g.add(b); y += h; }
+    const bell = new THREE.Mesh(new THREE.SphereGeometry(8, 24, 14, 0, Math.PI * 2, 0, Math.PI / 2), W('#E8B83A')); bell.scale.set(1, 1.3, 1); bell.position.y = y; g.add(bell);
+    const sp = new THREE.Mesh(new THREE.ConeGeometry(2.2, 14, 14), W('#E8B83A')); sp.position.y = y + 16; g.add(sp);
+  } else if (kind === 'pura') {       // a Balinese temple: a split gate of stepped grey towers and a meru with stacked black roofs
+    const stone = W('#8E8578'), brick = W('#C9785A');
+    for (const s of [-1, 1]) { let y = 0; for (const [w, h] of [[7, 6], [5.6, 5], [4.2, 4], [2.6, 3.5]]) { const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, w), y ? stone : brick); b.position.set(s * 5.4, y + h / 2, 8); g.add(b); y += h; } }
+    const base = new THREE.Mesh(new THREE.BoxGeometry(8, 5, 8), brick); base.position.set(0, 2.5, -4); g.add(base);
+    for (let i = 0; i < 7; i++) { const w = 13 - i * 1.6, r = new THREE.Mesh(new THREE.ConeGeometry(w * 0.72, 2.6, 4), W('#3A332C')); r.rotation.y = Math.PI / 4; r.position.set(0, 7 + i * 3, -4); g.add(r); }
   }
   g.scale.setScalar(s); g.traverse((m) => { if (m.isMesh) { m.castShadow = true; m.receiveShadow = true; } }); return g;
 }
