@@ -15,7 +15,8 @@ populated land joins the city, e.g. a bank of a river), names (short district na
 (name_ru, name_en, lon, lat, rotation), labels (id, name_ru, name_en, lon, lat: signs for places that are not pack areas),
 landmarks (kind, name, lon, lat; kinds in citymap/houses.js), country (Kontur id, e.g. serbia), names_en (short English names),
 skip (area ids left off the map, e.g. a town 100 km away), clip (boxes [w, s, e, n]: huge districts are cut to the town part),
-trim (people per 400 m cell: the land ends where fewer live, a soft edge instead of the clip box).
+trim (people per 400 m cell: the land ends where fewer live, a soft edge instead of the clip box),
+trimb (OSM buildings per ~350 m cell: the same edge from the buildings, where Kontur and OSM disagree).
 Data: © OpenStreetMap contributors (ODbL), Kontur Population (CC BY 4.0). Reads public APIs politely: one request at a time, retries.
 """
 from __future__ import annotations
@@ -86,7 +87,7 @@ def fetch(pack: Path, city: str) -> None:
     W, S, E, N = u.bounds
     W, S, E, N = W - .012, S - .012, E + .012, N + .012
     D = CACHE / city; D.mkdir(parents=True, exist_ok=True)
-    J, CSV = (lambda r: r[:1] == b"{"), (lambda r: r[:1].isdigit())
+    J, CSV = (lambda r: r[:1] == b"{"), (lambda r: r[:1].isdigit() or not r.strip())   # a tile over the sea has no buildings: empty is fine
     bb = f"{S:.4f},{W:.4f},{N:.4f},{E:.4f}"
     print(city, bb, flush=True)
     overpass(f'[out:json][timeout:250];(way["natural"="water"]({bb});relation["natural"="water"]({bb});way["waterway"="riverbank"]({bb});way["natural"="coastline"]({bb}););out geom;', D / "water.json", J)
@@ -138,15 +139,34 @@ def prepare(pack: Path, city: str) -> dict:
         cells = [Polygon([(lo, la) for la, lo in h3.cell_to_boundary(cid)]) for lo, la, p, cid in POP if b[0] < lo < b[2] and b[1] < la < b[3] and p > 1500]
         if cells:
             land = unary_union([land, unary_union(cells).buffer(0.002).buffer(-0.0016)])
-    if c.get("trim"):   # the edge follows where people live: 400 m cells with more than `trim` people, softened
-        cells = [Polygon([(lo, la) for la, lo in h3.cell_to_boundary(cid)]) for lo, la, p, cid in POP if p > c["trim"]]
+    if c.get("trim") or c.get("trimb"):
+        # the edge follows where the town is: `trim` = 400 m Kontur cells with more people than that, `trimb` = ~350 m cells
+        # with more OSM buildings than that (for places where Kontur and OSM disagree); softened, parks inside stay land
+        if c.get("trimb"):
+            from collections import Counter
+            cnt = Counter()
+            for f in glob.glob(str(D / "bld-*.csv")):
+                for r in csv.reader(open(f), delimiter="\t"):
+                    if len(r) >= 2 and r[0][:1].isdigit():
+                        cnt[h3.latlng_to_cell(float(r[0]), float(r[1]), 9)] += 1
+            spots, lim = [(cid, n) for cid, n in cnt.items()], c["trimb"]
+        else:
+            spots, lim = [(cid, p) for lo, la, p, cid in POP], c["trim"]
+        hexp = lambda cid: Polygon([(lo, la) for la, lo in h3.cell_to_boundary(cid)])
+        cells = [hexp(cid) for cid, v in spots if v > lim]
         if cells:
             town = unary_union(cells).buffer(0.0045).buffer(-0.0065).buffer(0.003)
-            town = unary_union([Polygon(g.exterior) for g in (town.geoms if hasattr(town, "geoms") else [town])])   # parks inside stay land
+            town = unary_union([Polygon(g.exterior) for g in (town.geoms if hasattr(town, "geoms") else [town])])
+            full = land
             land = land.intersection(town).buffer(0)
             if hasattr(land, "geoms"):   # no crumbs cut off by the edge
                 big = max(g.area for g in land.geoms)
                 land = unary_union([g for g in land.geoms if g.area > big * 0.02])
+            for a in areas.values():     # an area is never cut away: a thin one keeps its most lived part
+                if a.intersection(land).area < a.area * 0.08:
+                    own = [hexp(cid) for cid, v in spots if v > lim / 5 and a.contains(Point(*h3.cell_to_latlng(cid)[::-1]))]
+                    keep = unary_union(own).buffer(0.004).buffer(-0.003) if own else a
+                    land = unary_union([land, keep.intersection(a.buffer(0.0009)).intersection(full)]).buffer(0)
     water = []
     for e in J("water.json")["elements"]:
         t = e.get("tags", {})
