@@ -13,8 +13,9 @@ import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const crm = join(here, '..');
-// HUNT_REGIONS = the regions folder of a data repository (hunt-data); without it the packs that ship with the plugin.
-const regionsDir = process.env.HUNT_REGIONS ? resolve(process.env.HUNT_REGIONS) : join(crm, '..', 'plugins', 'hunt', 'regions');
+// Countries: HUNT_REGIONS (a hunt-data checkout's regions folder), else hunt-data cloned next to this repository, else the packs in the plugin.
+const sibling = join(crm, '..', '..', 'hunt-data', 'regions');
+const regionsDir = process.env.HUNT_REGIONS ? resolve(process.env.HUNT_REGIONS) : existsSync(sibling) ? sibling : join(crm, '..', 'plugins', 'hunt', 'regions');
 const out = join(crm, 'public', 'art');
 const toysOut = join(crm, 'public', 'toys');
 

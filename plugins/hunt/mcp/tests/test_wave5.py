@@ -1,5 +1,6 @@
 """Wave 5 tools (surf, guest guide, renewal "what next", search clone, negotiation, deal prices, recap, guests) and
 the pack-configurable free-flow location rings, against a mocked CRM and a mocked Valhalla. No network."""
+from _regions import real_regions
 import asyncio
 import json
 
@@ -252,7 +253,7 @@ def test_location_rings_from_pack_default_and_invalid(regions):
 
 
 def test_real_country_packs_define_the_default_rings(monkeypatch):
-    monkeypatch.setenv("HUNT_REGIONS", str(hc.plugin_root() / "regions"))
+    monkeypatch.setenv("HUNT_REGIONS", str(real_regions()))
     for country in ("bali", "kz", "th"):
         assert hc.merged_pack(country)["location"] == {"rings": [10, 20, 40], "weights": [1.0, 0.7, 0.3]}
 

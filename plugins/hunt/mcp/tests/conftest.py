@@ -42,7 +42,8 @@ REAL_PACKS = {"test_real_country_packs_define_the_default_rings", "test_region_p
 
 
 def pytest_collection_modifyitems(items):
-    if (MCP_DIR.parent / "regions" / "bali" / "pack.yaml").exists():
+    from _regions import real_regions
+    if (real_regions() / "bali" / "pack.yaml").exists():
         return
     for it in items:
         if it.originalname in REAL_PACKS if hasattr(it, "originalname") else it.name in REAL_PACKS:

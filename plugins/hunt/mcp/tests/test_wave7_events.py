@@ -1,6 +1,7 @@
 """Wave 7 · Афиша tools (events_upsert, events_get, event_set, event_bookings_get, event_book_draft, event_booking_set)
 against a mocked CRM, the local photo quality gate (event_photo_check) on synthetic Pillow images, and the region packs'
 events.yaml / `events: true` flags. No network."""
+from _regions import GENERIC, real_regions
 import asyncio
 import json
 import random
@@ -20,7 +21,7 @@ from PIL import Image, ImageDraw, ImageFilter, ImageFont  # noqa: E402
 URL = "https://crm.test"
 TOKEN = "hunt_test_token"
 ROOT = Path(__file__).resolve().parents[4]
-REGIONS = ROOT / "plugins" / "hunt" / "regions"
+REGIONS = real_regions()
 SHADERS = ROOT / "design" / "shaders"
 if not SHADERS.is_dir():  # the open repository ships only the built shaders
     SHADERS = SHADERS.parents[1] / "crm" / "public" / "fx"
@@ -492,7 +493,7 @@ def events_files():
 
 
 def test_generic_events_yaml_exists():
-    assert (REGIONS / "_generic" / "events.yaml").is_file()
+    assert (GENERIC / "events.yaml").is_file()
     assert (REGIONS / "bali" / "events.yaml").is_file()
 
 
@@ -522,7 +523,7 @@ def test_events_yaml_effects_and_sources(path):
 
 
 def test_generic_effects_cover_the_contract_defaults():
-    eff = yaml.safe_load((REGIONS / "_generic" / "events.yaml").read_text(encoding="utf-8"))["effects"]
+    eff = yaml.safe_load((GENERIC / "events.yaml").read_text(encoding="utf-8"))["effects"]
     shader = lambda k: eff[k]["shader"] if isinstance(eff[k], dict) else eff[k]  # noqa: E731
     assert shader("kecak") == "embers" and shader("sea") == "caustics" and eff["sea"]["mix"] == 0.35
     assert shader("bar") == "neon" and shader("padel") == "floodlight" and shader("workshop") == "none"

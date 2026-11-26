@@ -1,4 +1,5 @@
 """Region packs, time/route helpers and the sensitive-data guard (no network)."""
+from _regions import real_regions
 import asyncio
 from datetime import datetime
 from pathlib import Path
@@ -10,7 +11,7 @@ import pytest
 import hunt_core as hc
 from hunt_core import ToolError
 
-REPO_REGIONS = Path(__file__).resolve().parents[4] / "regions"
+REPO_REGIONS = real_regions()
 
 
 def run(coro):

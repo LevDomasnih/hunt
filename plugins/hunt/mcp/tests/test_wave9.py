@@ -2,6 +2,7 @@
 Party tools and event_feedback_get against a mocked CRM; event_source_read on fixture HTML through a mocked transport
 (robots.txt, noindex, JSON-LD @graph, og fallback, ics, cache, per-host throttle); the region packs' party blocks and
 organizer sources. No network."""
+from _regions import GENERIC, real_regions
 import asyncio
 import json
 import re
@@ -17,7 +18,7 @@ from hunt_core import ToolError
 URL = "https://crm.test"
 TOKEN = "hunt_test_token"
 ROOT = Path(__file__).resolve().parents[4]
-REGIONS = ROOT / "plugins" / "hunt" / "regions"
+REGIONS = real_regions()
 
 
 def run(coro):
@@ -412,7 +413,7 @@ PARTY_KEYS = {"quiet_after", "hint_ru", "hint_en", "notice_owner", "notice_neigh
 
 
 def test_generic_party_defaults():
-    p = yaml.safe_load((REGIONS / "_generic" / "events.yaml").read_text(encoding="utf-8"))["party"]
+    p = yaml.safe_load((GENERIC / "events.yaml").read_text(encoding="utf-8"))["party"]
     assert set(p) <= PARTY_KEYS and p["quiet_after"] == "23:00"
     assert p["hint_ru"] and p["hint_en"] and isinstance(p["notice_owner"], bool) and isinstance(p["notice_neighbours"], bool)
 

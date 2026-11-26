@@ -1,5 +1,6 @@
 """Wave 6 · Полезное tools (useful_get, useful_add, useful_decide, useful_annotate) against a mocked CRM, and the real
 region packs' useful.yaml files (links only, valid kinds/categories, the strict YAML subset). No network."""
+from _regions import real_regions
 import asyncio
 import json
 import re
@@ -15,7 +16,7 @@ from hunt_core import ToolError
 URL = "https://crm.test"
 TOKEN = "hunt_test_token"
 CRM = "crm.test"
-REGIONS = Path(__file__).resolve().parents[2] / "regions"
+REGIONS = real_regions()
 
 
 def run(coro):

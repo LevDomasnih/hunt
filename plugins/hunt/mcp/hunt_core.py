@@ -1871,8 +1871,9 @@ def regions_root() -> Path:
     if installed.is_dir() and any(installed.glob("*/pack.yaml")):
         return installed
     root = plugin_root()
-    for cand in (root / "regions", root.parent.parent / "regions"):  # plugin layout, then repo layout
-        if cand.is_dir():
+    # a hunt-data checkout next to the hunt repository (development), then packs shipped with the plugin
+    for cand in (root.parent.parent.parent / "hunt-data" / "regions", root / "regions", root.parent.parent / "regions"):
+        if cand.is_dir() and any(cand.glob("*/pack.yaml")):
             return cand
     return root / "regions"
 
