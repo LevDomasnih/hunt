@@ -16,6 +16,8 @@ const crm = join(here, '..');
 // Countries: HUNT_REGIONS (a hunt-data checkout's regions folder), else hunt-data cloned next to this repository, else the packs in the plugin.
 const sibling = join(crm, '..', '..', 'hunt-data', 'regions');
 const regionsDir = process.env.HUNT_REGIONS ? resolve(process.env.HUNT_REGIONS) : existsSync(sibling) ? sibling : join(crm, '..', 'plugins', 'hunt', 'regions');
+// The generic pack (fallback animals, events, party rules) ships with the plugin, not with hunt-data.
+const packDir = (c) => (c === '_generic' && !existsSync(join(regionsDir, c)) ? join(crm, '..', 'plugins', 'hunt', 'regions', c) : join(regionsDir, c));
 const out = join(crm, 'public', 'art');
 const toysOut = join(crm, 'public', 'toys');
 
@@ -385,7 +387,7 @@ function partyRules(raw, file) {
   return out;
 }
 function eventsOf(cdir) {
-  const files = [[join(regionsDir, '_generic', 'events.yaml'), null]];
+  const files = [[join(packDir('_generic'), 'events.yaml'), null]];
   if (cdir) {
     files.push([join(cdir, 'events.yaml'), null]);
     for (const s of readdirSync(cdir).sort()) if (existsSync(join(cdir, s, 'events.yaml'))) files.push([join(cdir, s, 'events.yaml'), s]);
@@ -421,8 +423,8 @@ const tz = {};
 const regionsJson = {};
 const themes = {};
 
-for (const country of readdirSync(regionsDir).sort()) {
-  const cdir = join(regionsDir, country);
+for (const country of [...new Set([...readdirSync(regionsDir), '_generic'])].sort()) {
+  const cdir = packDir(country);
   if (!statSync(cdir).isDirectory()) continue;
   const art = join(cdir, 'art');
   if (existsSync(art)) {
