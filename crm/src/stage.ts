@@ -8,7 +8,7 @@ import { regionTz } from './members';
 import { withSrc } from './media';
 import { dealDates, cleanDates } from './deal';
 import { dmMembers } from './notify';
-import { localDay } from './wave5';
+import { localDay } from './local';
 import { derivePath, stageIdx, STAGE_KEYS, MAJOR_STAGES, PathInput, Derived, addDays, daysBetween } from './stage-derive';
 
 export { STAGE_KEYS, stageIdx } from './stage-derive';
