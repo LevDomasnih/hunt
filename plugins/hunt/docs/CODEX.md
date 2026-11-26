@@ -8,7 +8,7 @@ The same plugin works in OpenAI Codex (checked with Codex CLI 0.145). Codex read
 2. Add the marketplace and install the plugin:
 
    ```
-   codex plugin marketplace add LevDomasnih/hunt-app
+   codex plugin marketplace add LevDomasnih/hunt
    codex plugin add hunt@hunt
    ```
 

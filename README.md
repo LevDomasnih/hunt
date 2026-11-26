@@ -64,19 +64,19 @@ The same app is a Telegram Mini App on the phone:
 **Look first.** Any Hunt server has a demo without sign-in: invented people, toy homes, nothing is sent. Open `/app` and press *See the demo*. On your machine:
 
 ```bash
-git clone https://github.com/LevDomasnih/hunt-app && git clone https://github.com/LevDomasnih/hunt-data
-cd hunt-app/crm && npm ci && HUNT_REGIONS=../../hunt-data/regions npm run dev
+git clone https://github.com/LevDomasnih/hunt && git clone https://github.com/LevDomasnih/hunt-data
+cd hunt/crm && npm ci && HUNT_REGIONS=../../hunt-data/regions npm run dev
 ```
 
 **A friend has a server.** Open their invite link, press Start in the bot, then in Claude Code ([uv](https://docs.astral.sh/uv/) is needed):
 
 ```
-/plugin marketplace add LevDomasnih/hunt-app
+/plugin marketplace add LevDomasnih/hunt
 /plugin install hunt@hunt
 /hunt:new Tbilisi
 ```
 
-**In Codex** instead of Claude Code: `codex plugin marketplace add LevDomasnih/hunt-app`, then `codex plugin add hunt@hunt` (or `/plugins` in the TUI). Commands become skills: `$hunt:new Tbilisi`. More in [CODEX.md](plugins/hunt/docs/CODEX.md).
+**In Codex** instead of Claude Code: `codex plugin marketplace add LevDomasnih/hunt`, then `codex plugin add hunt@hunt` (or `/plugins` in the TUI). Commands become skills: `$hunt:new Tbilisi`. More in [CODEX.md](plugins/hunt/docs/CODEX.md).
 
 **Your own server.** About ten minutes on Cloudflare's free tier: [crm/README.md](crm/README.md).
 

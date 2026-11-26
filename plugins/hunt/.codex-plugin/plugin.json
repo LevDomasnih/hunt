@@ -3,8 +3,8 @@
   "version": "0.1.0",
   "description": "Rent and run a home abroad with friends: your agent, your accounts, a Telegram Mini App.",
   "author": { "name": "Hunt contributors" },
-  "homepage": "https://github.com/LevDomasnih/hunt-app",
-  "repository": "https://github.com/LevDomasnih/hunt-app",
+  "homepage": "https://github.com/LevDomasnih/hunt",
+  "repository": "https://github.com/LevDomasnih/hunt",
   "license": "AGPL-3.0-only",
   "keywords": ["rental", "housing", "relocation", "telegram", "whatsapp", "bali", "thailand", "kazakhstan"],
   "skills": ["./skills/", "./codex-skills/"],
@@ -41,7 +41,7 @@
     "developerName": "Hunt contributors",
     "category": "Productivity",
     "capabilities": ["Read", "Write"],
-    "websiteURL": "https://github.com/LevDomasnih/hunt-app",
+    "websiteURL": "https://github.com/LevDomasnih/hunt",
     "defaultPrompt": ["Start a new search in Tbilisi", "What's new in my hunt?", "Plan viewings for tomorrow"]
   }
 }

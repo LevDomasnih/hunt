@@ -53,19 +53,19 @@
 **Сначала посмотреть.** На любом сервере Hunt есть демо без входа: люди выдуманные, дома игрушечные, ничего не отправляется. Открой `/app` и нажми «Посмотреть демо». У себя:
 
 ```bash
-git clone https://github.com/LevDomasnih/hunt-app && git clone https://github.com/LevDomasnih/hunt-data
-cd hunt-app/crm && npm ci && HUNT_REGIONS=../../hunt-data/regions npm run dev
+git clone https://github.com/LevDomasnih/hunt && git clone https://github.com/LevDomasnih/hunt-data
+cd hunt/crm && npm ci && HUNT_REGIONS=../../hunt-data/regions npm run dev
 ```
 
 **У друга есть сервер.** Открой приглашение, нажми Start в боте, потом в Claude Code (нужен [uv](https://docs.astral.sh/uv/)):
 
 ```
-/plugin marketplace add LevDomasnih/hunt-app
+/plugin marketplace add LevDomasnih/hunt
 /plugin install hunt@hunt
 /hunt:new Тбилиси
 ```
 
-**В Codex** вместо Claude Code: `codex plugin marketplace add LevDomasnih/hunt-app`, потом `codex plugin add hunt@hunt` (или `/plugins` в TUI). Команды там навыки: `$hunt:new Тбилиси`. Подробнее в [CODEX.md](plugins/hunt/docs/CODEX.md).
+**В Codex** вместо Claude Code: `codex plugin marketplace add LevDomasnih/hunt`, потом `codex plugin add hunt@hunt` (или `/plugins` в TUI). Команды там навыки: `$hunt:new Тбилиси`. Подробнее в [CODEX.md](plugins/hunt/docs/CODEX.md).
 
 **Свой сервер.** Минут десять на бесплатном Cloudflare: [crm/README.md](crm/README.md).
 
