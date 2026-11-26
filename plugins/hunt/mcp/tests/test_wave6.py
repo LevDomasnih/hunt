@@ -50,7 +50,7 @@ def body(req):
 @pytest.fixture
 def net(monkeypatch, isolated):
     fake = FakeNet()
-    monkeypatch.setattr(hc, "_TRANSPORT", httpx.MockTransport(fake))
+    monkeypatch.setattr(hc.owner_of("_TRANSPORT"), "_TRANSPORT", httpx.MockTransport(fake))
     hc.update_config(lambda c: c.__setitem__("api_url", URL))
     isolated.set_password("hunt", URL, TOKEN)
     return fake

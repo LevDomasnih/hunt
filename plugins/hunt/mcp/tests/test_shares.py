@@ -28,7 +28,7 @@ def data(tmp_path, monkeypatch):
     repo = tmp_path / "data"
     git(repo, "init", "-q"); git(repo, "add", "-A"); git(repo, "commit", "-qm", "x")
     real = hc._git
-    monkeypatch.setattr(hc, "_git", lambda *a, cwd=None, strip=True: real(*[str(repo) if x == "https://example.com/data" else x for x in a], cwd=cwd, strip=strip))
+    monkeypatch.setattr(hc.owner_of("_git"), "_git", lambda *a, cwd=None, strip=True: real(*[str(repo) if x == "https://example.com/data" else x for x in a], cwd=cwd, strip=strip))
     run(hc.packs_update("https://example.com/data"))
     return repo
 
@@ -41,7 +41,7 @@ def sent(monkeypatch):
         calls.append((method, path, kw.get("body")))
         return {"status": "asked"}
 
-    monkeypatch.setattr(hc, "api", api)
+    monkeypatch.setattr(hc.owner_of("api"), "api", api)
     return calls
 
 

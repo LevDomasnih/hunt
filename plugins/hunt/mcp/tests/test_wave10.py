@@ -26,7 +26,7 @@ def net(monkeypatch, isolated):
 
     hc.update_config(lambda c: c.__setitem__("api_url", URL))
     isolated.set_password("hunt", URL, "hunt_test_token")
-    monkeypatch.setattr(hc, "_TRANSPORT", httpx.MockTransport(handler))
+    monkeypatch.setattr(hc.owner_of("_TRANSPORT"), "_TRANSPORT", httpx.MockTransport(handler))
     return reqs
 
 

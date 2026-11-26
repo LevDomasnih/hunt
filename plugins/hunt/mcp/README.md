@@ -7,7 +7,7 @@ fetches Python and the dependencies into its cache on first start.
 
 | Server | File | What it does |
 |---|---|---|
-| `hunt` | `hunt_core.py` | Hunt CRM API (Cloudflare Worker), region packs, time/date/route helpers, event photo quality gate (Pillow) |
+| `hunt` | `hunt_core.py` + `huntcore/` | Hunt CRM API (Cloudflare Worker), region packs, time/date/route helpers, event photo quality gate (Pillow). `hunt_core.py` is the entry (uv script header, `mcp.run()`); the code lives in `huntcore/<area>.py` (base, searches, listings, messages, deals, money, house, home, places, packs, registry, routes, location, flood, items, living, stage, useful, events, parties, orders, event_photos, event_sources, portals). A module reads another's names as `_area.name`; tests patch a name where it is defined: `monkeypatch.setattr(hc.owner_of("name"), "name", …)` |
 | `hunt-telegram` | `hunt_telegram.py` | Telegram user account over Telethon: login by QR, inbox, history, media, guarded sending, folders |
 | `hunt-browser` | `hunt_browser.py` | WhatsApp Web (QR), Messenger and Instagram DMs in dedicated headless Chromium profiles: inbox, history, media, verified sending, pacing. See `../channels/headless.md`. Tests: `uv run --with pytest --with playwright==1.60.0 --with mcp --with keyring pytest mcp/tests/test_browser_local.py` |
 

@@ -167,7 +167,7 @@ def test_resolve_maps_url_does_not_follow_lookalike(monkeypatch):
     import httpx
     import hunt_core as hc
     seen = []
-    monkeypatch.setattr(hc, "_TRANSPORT", httpx.MockTransport(lambda r: seen.append(r) or httpx.Response(302, headers={"location": "https://evil.example/"})))
+    monkeypatch.setattr(hc.owner_of("_TRANSPORT"), "_TRANSPORT", httpx.MockTransport(lambda r: seen.append(r) or httpx.Response(302, headers={"location": "https://evil.example/"})))
     out = asyncio.run(hc._resolve_maps_url("https://evilgoo.gl/abc"))
     assert out == "https://evilgoo.gl/abc" and not seen
 

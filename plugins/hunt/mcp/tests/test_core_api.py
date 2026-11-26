@@ -47,7 +47,7 @@ class FakeCRM:
 @pytest.fixture
 def crm(monkeypatch, isolated):
     fake = FakeCRM()
-    monkeypatch.setattr(hc, "_TRANSPORT", httpx.MockTransport(fake))
+    monkeypatch.setattr(hc.owner_of("_TRANSPORT"), "_TRANSPORT", httpx.MockTransport(fake))
     return fake
 
 
@@ -163,7 +163,7 @@ def test_api_error_is_readable(configured):
 def test_network_error_is_readable(isolated, monkeypatch):
     def boom(req):
         raise httpx.ConnectError("connection refused")
-    monkeypatch.setattr(hc, "_TRANSPORT", httpx.MockTransport(boom))
+    monkeypatch.setattr(hc.owner_of("_TRANSPORT"), "_TRANSPORT", httpx.MockTransport(boom))
     hc.update_config(lambda c: c.__setitem__("api_url", URL))
     isolated.set_password("hunt", URL, TOKEN)
     with pytest.raises(ToolError, match="Cannot reach the CRM"):
@@ -619,7 +619,7 @@ def test_directory_tools(configured):
 
 
 def test_travel_times_refresh_uses_valhalla_cache_and_rush(configured, monkeypatch):
-    monkeypatch.setattr(hc, "_VALHALLA_MIN_INTERVAL", 0)
+    monkeypatch.setattr(hc.owner_of("_VALHALLA_MIN_INTERVAL"), "_VALHALLA_MIN_INTERVAL", 0)
     configured.on("GET", "/api/searches/s1", {"search": {"id": "s1", "region": "xx/alpha", "brief": {
         "anchors": [{"id": "a_surf", "name": "Surf", "lat": -8.85, "lng": 115.17, "mode": "scooter"}, {"id": "a_dps", "name": "Airport", "lat": -8.74, "lng": 115.17, "mode": "car"}]}}})
     configured.on("GET", "/api/searches/s1/listings", [
