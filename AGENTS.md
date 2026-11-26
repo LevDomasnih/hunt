@@ -1,0 +1,21 @@
+# Hunt
+
+Instructions for coding agents (Claude Code reads them through `CLAUDE.md`, Codex reads this file).
+
+## Three repositories, side by side
+
+- `hunt` (this one, public): all the code. Work here.
+- `../hunt-data` (public): the countries, and only there (`regions/<country>/`). The app (`crm/scripts/copy-art.mjs`), the plugin (`regions_root`) and the tests find it next to this folder; `HUNT_REGIONS=<path>/regions` overrides. `plugins/hunt/regions/` keeps only `_generic`. Change a country in `../hunt-data`, not here.
+- `../hunt-studio` (private, may be missing): mockups and design history (`design/…`; a `design/…` path in `DESIGN.md` means `../hunt-studio/design/…`), the config of our own server, the tests that need the private demo seed, the leak check. Nothing private goes into `hunt` or `hunt-data`: no real names, phones, house photos, workplace, our server's ids. Both are public.
+
+## UI
+
+UI work follows the design system: @DESIGN.md (tokens live in `crm/public/app.css`, the region screen colour and map accent in `../hunt-data/regions/*/art/theme.yaml`, mockups in `../hunt-studio/design/`). Region art, animals and goods toys: skill `plugins/hunt/skills/hunt-art`. Mockup in pen.dev first, then code.
+
+## Engineering
+
+Worker + D1 + KV on the Cloudflare free tier (see `crm/README.md`); API reference `core/API.md`; region pack format `core/PACK_FORMAT.md` (keep `plugins/hunt/docs/PACK_FORMAT.md` identical). The Codex plugin: `plugins/hunt/docs/CODEX.md`; after changing `plugins/hunt/commands/` run `node scripts/codex-skills.mjs`.
+
+Checks: `node scripts/test-web.mjs` and `npm run test:households` in `crm/`, `node registry/scripts/test.mjs`, the plugin tests (`plugins/hunt/mcp/README.md`), `node scripts/codex-skills.mjs --check`.
+
+Deploys (`npm run migrate`, `npm run deploy`) only with the human's go-ahead; our own server deploys with the config from `../hunt-studio`.
