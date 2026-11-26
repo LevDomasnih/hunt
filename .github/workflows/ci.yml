@@ -40,9 +40,6 @@ jobs:
       - name: Site (static checks)
         working-directory: hunt/crm
         run: node scripts/test-web.mjs
-      - name: Households (local worker, throwaway database)
-        working-directory: hunt/crm
-        run: npm run test:households
       - name: Sources registry
         working-directory: hunt
         run: node registry/scripts/test.mjs
@@ -52,6 +49,32 @@ jobs:
       - name: Codex skills are fresh
         working-directory: hunt
         run: node scripts/codex-skills.mjs --check
+
+  households:
+    # On Linux the local worker stops answering after the test reads its database with a second wrangler (d1 execute / kv list):
+    # stable on macOS, so it runs there until the test reads the database without a second wrangler.
+    name: households (local worker)
+    runs-on: macos-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: hunt
+      - uses: actions/checkout@v4
+        with:
+          repository: LevDomasnih/hunt-data
+          path: hunt-data
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: hunt/crm/package-lock.json
+      - name: Install
+        working-directory: hunt/crm
+        run: npm ci --no-audit --no-fund
+      - name: Households (local worker, throwaway database)
+        working-directory: hunt/crm
+        run: npm run test:households
 
   plugin:
     name: plugin
