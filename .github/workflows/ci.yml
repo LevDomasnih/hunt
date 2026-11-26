@@ -52,11 +52,9 @@ jobs:
         run: node scripts/codex-skills.mjs --check
 
   households:
-    # On CI machines (Linux and macOS) the local worker stops answering after the test reads its database with a second wrangler
-    # (d1 execute / kv list); on a laptop it passes. Non-blocking until the test reads the database without a second wrangler.
-    name: households (local worker, non-blocking)
+    # Starts its own wrangler dev on a throwaway database and reads that database straight from the sqlite files.
+    name: households (local worker)
     runs-on: ubuntu-latest
-    continue-on-error: true
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
