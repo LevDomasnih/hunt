@@ -35,9 +35,12 @@ jobs:
       - name: Install
         working-directory: hunt/crm
         run: npm ci --no-audit --no-fund
-      - name: Types
+      - name: Types (server and Mini App)
         working-directory: hunt/crm
-        run: npx tsc --noEmit -p .
+        run: npx tsc --noEmit -p . && npx tsc --noEmit -p web
+      - name: Build the Mini App
+        working-directory: hunt/crm
+        run: node scripts/build-web.mjs
       - name: Site (static checks)
         working-directory: hunt/crm
         run: node scripts/test-web.mjs

@@ -4,18 +4,24 @@
   "type": "module",
   "scripts": {
     "art": "node scripts/copy-art.mjs",
-    "predev": "node scripts/copy-art.mjs",
+    "build:web": "node scripts/build-web.mjs",
+    "predev": "node scripts/copy-art.mjs && node scripts/build-web.mjs",
     "dev": "wrangler dev",
-    "predeploy": "node scripts/copy-art.mjs --no-demo",
+    "predeploy": "node scripts/copy-art.mjs --no-demo && node scripts/build-web.mjs",
     "deploy": "wrangler deploy",
     "migrate": "wrangler d1 migrations apply hunt --remote",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p web",
     "test:households": "node scripts/test-households.mjs"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20261119.1",
+    "esbuild": "0.28.2",
     "typescript": "^5.6.0",
     "wrangler": "^4.165.0"
   },
-  "license": "AGPL-3.0-only"
+  "license": "AGPL-3.0-only",
+  "dependencies": {
+    "htm": "3.1.1",
+    "preact": "10.29.8"
+  }
 }

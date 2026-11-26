@@ -3044,8 +3044,7 @@ html[data-desk] .ax .or-dock { margin: 18px 0 0; padding: 0; background: none; p
 .np-main .np-back { margin-bottom: 4px; }
 .np-main { min-width: 0; min-height: 0; overflow-y: auto; padding: 8px 4px 90px; position: relative; max-width: 760px; }
 .np-main.map { max-width: none; }
-.np-main .np-map { width: 100%; margin: 0; max-height: 72vh; aspect-ratio: auto !important; }
-.np-main .np-map img { object-fit: contain; height: auto; max-height: 72vh; }
+.np-main .np-map { width: min(100%, 72vh * var(--ar, 1)); margin: 0 auto; }   /* keeps the picture's own ratio: a tall city narrows the box instead of letterboxing, so the signs stay on it */
 .np-dock { position: absolute; left: 4px; bottom: 16px; display: flex; gap: 10px; }
 .np-dock .btn.big { min-width: 260px; }
 .np-dev .np-card { margin: 4px 0 0; background: var(--screen, #ACB6FF); color: #151413; box-shadow: none; padding: 16px; border-radius: 22px; }

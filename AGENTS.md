@@ -14,7 +14,7 @@ UI work follows the design system: @DESIGN.md (tokens live in `crm/public/app.cs
 
 ## Engineering
 
-Layout: the Mini App is `crm/public/app.js` (entry) + `crm/public/app/<area>/*.js`; the server is `crm/src/*.ts`, one module per area; the plugin's core MCP server is `plugins/hunt/mcp/hunt_core.py` (entry) + `huntcore/<area>.py`. Add code to the module of its area, not to the entry files.
+Layout: the Mini App is TypeScript in `crm/web/` (`app.ts` entry + `app/<area>/*.ts`, Preact + htm from npm), built by `node crm/scripts/build-web.mjs` (esbuild) into `crm/public/app.js` (git-ignored; `npm run dev` and `npm run deploy` build it, `--watch` while editing); types: `npx tsc -p crm/web`; the server is `crm/src/*.ts`, one module per area; the plugin's core MCP server is `plugins/hunt/mcp/hunt_core.py` (entry) + `huntcore/<area>.py`. Add code to the module of its area, not to the entry files.
 
 Worker + D1 + KV on the Cloudflare free tier (see `crm/README.md`); API reference `core/API.md`; region pack format `core/PACK_FORMAT.md` (keep `plugins/hunt/docs/PACK_FORMAT.md` identical). The Codex plugin: `plugins/hunt/docs/CODEX.md`; after changing `plugins/hunt/commands/` run `node scripts/codex-skills.mjs`.
 

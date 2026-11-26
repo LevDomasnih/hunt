@@ -1,6 +1,7 @@
 // Orders · "Наборы": pure checks (no Worker): names, the repeat schedule, the next occurrence, when the cron reminds, the reminder
-// text, and that the server's range is exactly the Mini App's (public/app/orders/orders.js ordSpread / ordRangeStr run side by side).
+// text, and that the server's range is exactly the Mini App's (web/app/orders/orders.ts ordSpread / ordRangeStr run side by side).
 //   node --experimental-strip-types scripts/test-order-sets-pure.mts
+import { transformSync } from 'esbuild';
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -57,7 +58,7 @@ ok(skippedLine('ru', 'Лев').startsWith('Пропускаем этот раз'
 ok(!/кнопка открывает/.test(txt), 'the mockup caption is not part of the message');
 
 // ---- the range: the server port against the Mini App's own code
-const app = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'public', 'app', 'orders', 'orders.js'), 'utf8');
+const app = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'web', 'app', 'orders', 'orders.ts'), 'utf8');
 const a0 = app.indexOf('const RG_KG = ');
 const a1 = app.indexOf('\n', app.indexOf('const ordRangeStr = '));
 ok(a0 > 0 && a1 > a0, 'found ordSpread in orders.js');
@@ -67,7 +68,7 @@ const client = (lang: string, items: Record<string, unknown[]>) => {
   const t = (k: string) => STR[lang][k];
   const LOC = () => (lang === 'ru' ? 'ru-RU' : 'en-GB');
   const SYM = { KZT: '₸', THB: '฿', USD: '$', EUR: '€', RUB: '₽', IDR: 'IDR' };
-  return new Function('OR', 't', 'LOC', 'SYM', 'LANG', `${app.slice(a0, a1).replace(/^export /gm, '')}\nreturn { ordSpread, ordRangeStr };`)(OR, t, LOC, SYM, lang);
+  return new Function('OR', 't', 'LOC', 'SYM', 'LANG', `${transformSync(app.slice(a0, a1).replace(/^export /gm, ''), { loader: 'ts' }).code}\nreturn { ordSpread, ordRangeStr };`)(OR, t, LOC, SYM, lang);
 };
 let seed = 7;
 const rnd = () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; };
