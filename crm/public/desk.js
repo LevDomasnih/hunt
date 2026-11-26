@@ -14,6 +14,7 @@ import {
 import { demoOn, demoStart, demoStop } from './demo.js';
 import * as ax from './access.js';
 import { loadAccess, canAccess } from './access.js';
+import { DeskAgent } from './agent.js'; // "Подключить агента" on the desk (design/desktop/agent-desk-*)
 
 /** A price with its unit (22 млн) and its parts for the big figures. */
 const prc = (l) => (l?.price != null ? money(l.price, l.currency) : '');
@@ -772,6 +773,8 @@ export function Desk({ route, view }) {
     addEventListener('keydown', f);
     return () => removeEventListener('keydown', f);
   }, []);
+  const n = decisions().length;
+  const dev0 = () => html`<${Device} desk=${desk} title=${n ? L('Нужно твоё да', 'I need your yes') : L('Я рядом', 'I am here')}>${n > 0 && html`<button class="btn dk-inv2" onClick=${() => go(sp(home ? 'today' : 'chats'))}>${L(`Ждут тебя: ${n}`, `Waiting: ${n}`)}</button>`}<//>`;
   const own = {
     today: () => (home ? [html`<${DeskHome} desk=${desk} />`, html`<${HomeDevice} desk=${desk} />`] : null),
     chats: () => [html`<${DeskChats} arg=${a} />`, html`<${ChatsDevice} desk=${desk} arg=${a} />`],
@@ -781,14 +784,14 @@ export function Desk({ route, view }) {
     afisha: () => [html`<${DeskAfisha} arg=${a} desk=${desk} />`, null],
     shop: () => (a === 'services' ? null : [html`<${DeskShop} arg=${a} />`, html`<${ShopDevice} desk=${desk} arg=${a} />`]),
     access: () => (a === 'limit' || !canAccess() ? null : [html`<${DeskAccess} key=${a ?? ''} arg=${a} />`, html`<${AccessDevice} arg=${a} desk=${desk} />`]),
+    agent: () => [html`<${DeskAgent} />`, dev0()],
     docs: () => [html`<${DeskDocs} />`, html`<${Device} desk=${desk} title=${(d.documents ?? []).some((x) => x.status !== 'have') ? L('Не всё собрано', 'Not all collected') : L('Бумаги в порядке', 'Papers in order')} sub=${L('номера паспортов я не храню', 'I keep no passport numbers')} />`],
   }[screen]?.() ?? null;
-  const n = decisions().length;
   return html`<div class=${'dk' + (own && !own[1] ? ' two' : '')} data-screen=${screen}>
     <a class="dk-skip" href="#dk-main" onClick=${(e) => { e.preventDefault(); document.querySelector('.dk-main')?.focus(); }}>${L('К содержанию', 'Skip to content')}</a>
     <${Rail} screen=${screen} />
     ${own ? own[0] : html`<div class="dk-main dk-col" tabindex="-1"><div class="dk-colin">${!['today', 'more', 'picker'].includes(screen) && html`<button class="round dk-back" aria-label=${t('back')} onClick=${back}><${Icon} n="arrow-left" /></button>`}${view}</div></div>`}
-    ${own ? own[1] : html`<${Device} desk=${desk} title=${n ? L('Нужно твоё да', 'I need your yes') : L('Я рядом', 'I am here')}>${n > 0 && html`<button class="btn dk-inv2" onClick=${() => go(sp(home ? 'today' : 'chats'))}>${L(`Ждут тебя: ${n}`, `Waiting: ${n}`)}</button>`}<//>`}
+    ${own ? own[1] : dev0()}
     <div class="dk-bar"><${HuntMark} /><span class="grow">${n ? L('Hunt ждёт тебя', 'Hunt waits for you') : agoWord(desk?.agent_seen_at)}</span>${n > 0 && html`<i>${n}</i>`}<${Ask} ph=${L('Скажи Hunt', 'Tell Hunt')} /></div>
   </div>`;
 }

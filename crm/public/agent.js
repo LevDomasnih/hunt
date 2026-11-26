@@ -2,7 +2,7 @@
 // address and a new agent token, the status of the owner's agent; a member sees who connects it. Imported by app.js; the
 // names below are used only while rendering (a circular import).
 import { html, useState, useEffect } from 'https://unpkg.com/htm@3.1.1/preact/standalone.module.js';
-import { D, LANG, api, emit, toast, hap, go, sp, openLink, openSheet, closeSheet, Icon, Av, BigWord, Typed, Sticker, Good, BackRound, copyText, firstName, fmtDM, genRu, isGuest, Nav, homeMode } from './app.js';
+import { D, LANG, t, api, emit, toast, hap, go, sp, back, openLink, openSheet, closeSheet, Icon, Av, BigWord, Typed, Sticker, Good, BackRound, copyText, firstName, fmtDM, genRu, isGuest, Nav, homeMode } from './app.js';
 import { demoOn } from './demo.js';
 
 const L = (ru, en) => (LANG === 'en' ? en : ru);
@@ -76,7 +76,11 @@ function Risk() {
       'WhatsApp, Messenger and Instagram forbid automating personal accounts and may ban them. Connecting them is your own decision. Use a separate number if you can and keep the pace low. Telegram limits accounts for spam')}</p>`}</div>`;
 }
 /** The address and the token: the token in full only right after "Выпустить новый", afterwards a placeholder. */
-function Conn({ codex }) {
+/** One line of "Адрес и токен": on the phone the label sits over the value with the buttons on the right; on the desk the label has its own line. */
+const Field = ({ desk, label, value, cls = null, children }) => (desk
+  ? html`<div class="ag-field ag-field-d"><i>${label}</i><span class="ag-fv"><code class=${cls}>${value}</code>${children}</span></div>`
+  : html`<div class="ag-field"><span class="grow"><i>${label}</i><code class=${cls}>${value}</code></span>${children}</div>`);
+function Conn({ codex, desk = false }) {
   const [hide, setHide] = useState(false);
   const tok = AG.tok, url = apiUrl(), on = agentOn();
   const both = () => copyText(`${L('Адрес', 'Address')}: ${url}\n${L('Токен', 'Token')}: ${tok}`);
@@ -84,10 +88,10 @@ function Conn({ codex }) {
   return html`<section class="ag-conn" id="ag-conn">
     <h2>${L('Адрес и токен', 'Address and token')}</h2>
     <p class="ag-conn-sub">${codex ? L('$hunt:new спросит их на шаге 4', '$hunt:new asks for them in step 4') : L('/hunt:new спросит их на шаге 4', '/hunt:new asks for them in step 4')}</p>
-    <div class="ag-field"><span class="grow"><i>${L('Адрес сервера', 'Server address')}</i><code>${host(url)}</code></span><${CopyBtn} text=${url} label=${L('Скопировать адрес', 'Copy the address')} /></div>
-    <div class="ag-field"><span class="grow"><i>${L('Токен · видите только вы', 'Token · only you see it')}</i><code class=${tok && !hide ? 'tok' : ''}>${tok && !hide ? tok : 'hunt_••••••••'}</code></span>
+    <${Field} desk=${desk} label=${L('Адрес сервера', 'Server address')} value=${host(url)}><${CopyBtn} text=${url} label=${L('Скопировать адрес', 'Copy the address')} /><//>
+    <${Field} desk=${desk} label=${L('Токен · видите только вы', 'Token · only you see it')} value=${tok && !hide ? tok : 'hunt_••••••••'} cls=${tok && !hide ? 'tok' : ''}>
       ${tok && html`<button class="btn sm surface ag-eye" aria-pressed=${hide ? 'false' : 'true'} onClick=${() => setHide(!hide)}><${Icon} n=${hide ? 'eye' : 'eyeoff'} cls="sm" />${hide ? L('Показать', 'Show') : L('Скрыть', 'Hide')}</button>
-        <${CopyBtn} text=${tok} label=${L('Скопировать токен', 'Copy the token')} />`}</div>
+        <${CopyBtn} text=${tok} label=${L('Скопировать токен', 'Copy the token')} />`}<//>
     ${tok ? html`<p class="ag-warn"><${Icon} n="shield-alert" cls="sm" />${L('Не пересылайте его в чаты: с ним агент действует от вашего имени. После ухода со страницы токен не покажем', 'Do not forward it to chats: with it the agent acts on your behalf. Once you leave this page it is not shown again')}</p>`
       : html`<p class="ag-hint">${L('Сервер хранит только отпечаток токена, старый не показать. Нужен новый: выпустите его здесь', 'The server keeps only a fingerprint of the token, the old one cannot be shown. Need one: issue a new one here')}</p>`}
     ${tok && html`<button class="btn accent big block ag-both" onClick=${both}><${Icon} n="copy" cls="sm" />${L('Скопировать адрес и токен', 'Copy the address and token')}</button>`}
@@ -99,37 +103,95 @@ const Hero = ({ children }) => html`<section class="w8-hero ax-hero ag-hero" sty
 const Toy = ({ n, s, x, y, r }) => html`<span class="ax-toy" style=${`left:${x};top:${y}px`}><${Good} slug=${n} size=${s} rot=${r} big /></span>`;
 const Shell = ({ children }) => html`<main class="screen w2 ax ag">${children}<${Nav} tab="more" /></main>`;
 
-function OwnerPage() {
+/** The Claude Code | Codex switch (opens on the client the plugin reports) and the token that lives only while the page is open. */
+function useOwner() {
   const d = D();
   const [tab, setTab] = useState(() => AG.tab ?? (d.agent_client === 'codex' ? 'codex' : 'claude'));
-  useEffect(() => () => { AG.tok = null; AG.url = null; }, []); // the token is forgotten when the page closes
-  const on = agentOn(), codex = tab === 'codex';
+  // the token is forgotten when the page closes; not when the window only crosses the phone / desk width and the page comes back at once
+  useEffect(() => () => setTimeout(() => { if (!document.getElementById('ag-conn')) { AG.tok = null; AG.url = null; } }, 0), []);
   const pick = (k) => { if (k === tab) return; hap.sel(); AG.tab = k; setTab(k); };
-  return html`<${Shell}><${BackRound} />
-    <${Hero}><${Toy} n="key" s=${172} x="70%" y=${8} r=${-14} /><${Sticker} text=${L('свой агент', 'your own agent')} cls="ax-sticker ag-sticker" style="left:44px;top:58px;--r:-12deg" /><//>
-    <${Typed} lines=${[on ? L('Hunt на связи', 'Hunt is here') : L('Подключим агента?', 'Connect your agent?')]} as="h1" />
-    <p class="w8-sub">${L('Hunt думает и пишет через вашего агента в Claude Code или Codex', 'Hunt thinks and writes through your agent in Claude Code or Codex')}</p>
-    <div class="ag-state"><${Status} /><${Note}>${L('Агент работает на вашей подписке, логины мессенджеров остаются на вашем компьютере', 'The agent runs on your subscription, messenger logins stay on your computer')}<//></div>
-    <div class="seg full ag-seg" role="group" aria-label=${L('Где ваш агент', 'Where your agent runs')}>
+  return [tab, pick];
+}
+const Seg = ({ codex, pick }) => html`<div class="seg full ag-seg" role="group" aria-label=${L('Где ваш агент', 'Where your agent runs')}>
       <button aria-pressed=${!codex ? 'true' : 'false'} onClick=${() => pick('claude')}>Claude Code</button>
       <button aria-pressed=${codex ? 'true' : 'false'} onClick=${() => pick('codex')}>Codex</button>
-    </div>
-    <ol class="ag-steps">${STEPS[codex ? 'codex' : 'claude']().map((s, i) => html`<${Step} key=${tab + i} n=${i + 1} ...${s} />`)}</ol>
+    </div>`;
+const Steps = ({ tab }) => html`<ol class="ag-steps">${STEPS[tab === 'codex' ? 'codex' : 'claude']().map((s, i) => html`<${Step} key=${tab + i} n=${i + 1} ...${s} />`)}</ol>`;
+const ownerTitle = () => (agentOn() ? L('Hunt на связи', 'Hunt is here') : L('Подключим агента?', 'Connect your agent?'));
+const OWNER_LEAD = () => L('Hunt думает и пишет через вашего агента в Claude Code или Codex', 'Hunt thinks and writes through your agent in Claude Code or Codex');
+const OWNER_NOTE = () => L('Агент работает на вашей подписке, логины мессенджеров остаются на вашем компьютере', 'The agent runs on your subscription, messenger logins stay on your computer');
+const MEMBER_LEAD = () => L('Hunt думает и пишет через агента владельца поиска. Вам ничего ставить не нужно', 'Hunt thinks and writes through the search owner’s agent. You need to install nothing');
+const MEMBER_NOTE = () => L('Агент работает на подписке владельца, логины мессенджеров остаются на его компьютере', 'The agent runs on the owner’s subscription, messenger logins stay on their computer');
+const memberTitle = (o) => { const n = firstName(o?.name) || L('владелец', 'the owner'); return L(`Агента подключает ${n}`, `${n} connects the agent`); };
+const Ask = ({ o, size }) => html`<div class="ag-ask">${o && html`<${Av} m=${o} size=${size} />`}<span class="grow"><b>${askOwner(o?.name)}</b><i>${L('Токен и шаги подключения видит только владелец', 'Only the owner sees the token and the steps')}</i></span></div>`;
+
+function OwnerPage() {
+  const [tab, pick] = useOwner();
+  const codex = tab === 'codex';
+  return html`<${Shell}><${BackRound} />
+    <${Hero}><${Toy} n="key" s=${172} x="70%" y=${8} r=${-14} /><${Sticker} text=${L('свой агент', 'your own agent')} cls="ax-sticker ag-sticker" style="left:44px;top:58px;--r:-12deg" /><//>
+    <${Typed} lines=${[ownerTitle()]} as="h1" />
+    <p class="w8-sub">${OWNER_LEAD()}</p>
+    <div class="ag-state"><${Status} /><${Note}>${OWNER_NOTE()}<//></div>
+    <${Seg} codex=${codex} pick=${pick} />
+    <${Steps} tab=${tab} />
     <${Conn} codex=${codex} />
     <${Risk} />
   <//>`;
 }
 function MemberPage() {
   const o = ownerOf();
-  const n = firstName(o?.name) || L('владелец', 'the owner');
   return html`<${Shell}><${BackRound} />
     <${Hero}><${Toy} n="lock" s=${168} x="72%" y=${10} r=${10} /><//>
-    <${Typed} lines=${[L(`Агента подключает ${n}`, `${n} connects the agent`)]} as="h1" />
-    <p class="w8-sub">${L('Hunt думает и пишет через агента владельца поиска. Вам ничего ставить не нужно', 'Hunt thinks and writes through the search owner’s agent. You need to install nothing')}</p>
+    <${Typed} lines=${[memberTitle(o)]} as="h1" />
+    <p class="w8-sub">${MEMBER_LEAD()}</p>
     <div class="ag-state"><${Status} member /></div>
-    <div class="ag-ask">${o && html`<${Av} m=${o} size=${52} />`}<span class="grow"><b>${askOwner(o?.name)}</b><i>${L('Токен и шаги подключения видит только владелец', 'Only the owner sees the token and the steps')}</i></span></div>
-    <${Note}>${L('Агент работает на подписке владельца, логины мессенджеров остаются на его компьютере', 'The agent runs on the owner’s subscription, messenger logins stay on their computer')}<//>
+    <${Ask} o=${o} size=${52} />
+    <${Note}>${MEMBER_NOTE()}<//>
   <//>`;
+}
+
+// ---------------------------------------------------------------- the big screen (≥ 1024, design/desktop/agent-desk-*)
+/** The centre column of the desk: a compact header row, the status strip between two hairlines, then the steps on the left and the
+ * address and token on the right (sticky). The shell (rail, the Hunt device) is desk.js; the confirm is the same sheet, centred there. */
+function DeskHead({ title, lead, toy }) {
+  return html`<header class="ag-dk-h">
+    <button class="round ag-dk-back" aria-label=${t('back')} onClick=${back}><${Icon} n="arrow-left" /></button>
+    ${toy && html`<${BigWord} text=${L('Агент', 'Agent')} cls="ag-dk-word" />`}
+    <${Typed} lines=${[title]} as="h1" cls="ag-dk-say" />
+    <p class="ag-dk-lead">${lead}</p>
+    ${toy && html`<span class="ag-dk-key"><${Good} slug="key" size=${156} rot=${-14} big /></span><${Sticker} text=${L('свой агент', 'your own agent')} cls="ax-sticker ag-dk-st" style="--r:-12deg" />`}
+  </header>`;
+}
+const Strip = ({ member, note }) => html`<div class="ag-dk-strip"><${Status} member=${member} /><${Note}>${note}<//></div>`;
+function DeskOwner() {
+  const [tab, pick] = useOwner();
+  const codex = tab === 'codex';
+  return html`<div class="dk-main ag ag-dk" tabindex="-1">
+    <${DeskHead} title=${ownerTitle()} lead=${OWNER_LEAD()} toy />
+    <${Strip} note=${OWNER_NOTE()} />
+    <div class="ag-dk-cols">
+      <div class="ag-dk-l"><${Seg} codex=${codex} pick=${pick} /><${Steps} tab=${tab} /></div>
+      <div class="ag-dk-r"><${Conn} codex=${codex} desk /><${Risk} /></div>
+    </div>
+  </div>`;
+}
+function DeskMember() {
+  const o = ownerOf();
+  return html`<div class="dk-main ag ag-dk" tabindex="-1">
+    <${DeskHead} title=${memberTitle(o)} lead=${MEMBER_LEAD()} />
+    <${Strip} member note=${MEMBER_NOTE()} />
+    <div class="ag-dk-cols">
+      <${BigWord} text=${L('Агент', 'Agent')} cls="ag-dk-word m" />
+      <div class="ag-dk-l"><${Ask} o=${o} size=${56} /></div>
+      <div class="ag-dk-r ag-dk-lock"><${Good} slug="lock" size=${240} rot=${10} big /></div>
+    </div>
+  </div>`;
+}
+export function DeskAgent() {
+  const d = D();
+  if (!d?.search || isGuest()) return html`<div class="dk-main ag ag-dk" tabindex="-1"><p class="ag-hint">${L('Это для участников поиска', 'This is for the members of the search')}</p></div>`;
+  return d.me?.role === 'owner' ? html`<${DeskOwner} />` : html`<${DeskMember} />`;
 }
 export function AgentScreen() {
   const d = D();
