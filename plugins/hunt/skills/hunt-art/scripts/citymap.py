@@ -16,7 +16,8 @@ populated land joins the city, e.g. a bank of a river), names (short district na
 landmarks (kind, name, lon, lat; kinds in citymap/houses.js), country (Kontur id, e.g. serbia), names_en (short English names),
 skip (area ids left off the map, e.g. a town 100 km away), clip (boxes [w, s, e, n]: huge districts are cut to the town part),
 trim (people per 400 m cell: the land ends where fewer live, a soft edge instead of the clip box),
-trimb (OSM buildings per ~350 m cell: the same edge from the buildings, where Kontur and OSM disagree).
+trimb (OSM buildings per ~350 m cell: the same edge from the buildings, where Kontur and OSM disagree),
+wild (true: land far from buildings is forest with trees, for islands and hills).
 Data: © OpenStreetMap contributors (ODbL), Kontur Population (CC BY 4.0). Reads public APIs politely: one request at a time, retries.
 """
 from __future__ import annotations
@@ -103,11 +104,15 @@ def fetch(pack: Path, city: str) -> None:
     if c["country"] and not (D / "kontur.gpkg").exists():   # one download per country, shared by its cities
         K = CACHE / f"kontur-{c['country']}.gpkg"
         if not K.exists():
-            meta = json.loads(urllib.request.urlopen(urllib.request.Request(f"https://data.humdata.org/api/3/action/package_show?id=kontur-population-{c['country']}", headers=UA), timeout=60, context=tls()).read())
-            url = sorted(r["url"] for r in meta["result"]["resources"] if r["url"].endswith(".gpkg.gz"))[-1]
-            K.write_bytes(gzip.decompress(urllib.request.urlopen(urllib.request.Request(url, headers=UA), timeout=600, context=tls()).read()))
-            print("  kontur", url.rsplit("/", 1)[1], flush=True)
-        (D / "kontur.gpkg").symlink_to(K)
+            try:   # HDX sometimes answers an empty 202 (its bot check); the map still builds without people, fetch again later
+                meta = json.loads(urllib.request.urlopen(urllib.request.Request(f"https://data.humdata.org/api/3/action/package_show?id=kontur-population-{c['country']}", headers=UA), timeout=60, context=tls()).read())
+                url = sorted(r["url"] for r in meta["result"]["resources"] if r["url"].endswith(".gpkg.gz"))[-1]
+                K.write_bytes(gzip.decompress(urllib.request.urlopen(urllib.request.Request(url, headers=UA), timeout=600, context=tls()).read()))
+                print("  kontur", url.rsplit("/", 1)[1], flush=True)
+            except Exception as e:
+                print("  kontur NOT FETCHED:", str(e)[:80], f"(id kontur-population-{c['country']} on data.humdata.org)", flush=True)
+        if K.exists():
+            (D / "kontur.gpkg").symlink_to(K)
     (D / "frame.json").write_text(json.dumps([W, S, E, N]))
 
 
@@ -164,7 +169,12 @@ def prepare(pack: Path, city: str) -> dict:
                 land = unary_union([g for g in land.geoms if g.area > big * 0.02])
             for a in areas.values():     # an area is never cut away: a thin one keeps its most lived part
                 if a.intersection(land).area < a.area * 0.08:
-                    own = [hexp(cid) for cid, v in spots if v > lim / 5 and a.contains(Point(*h3.cell_to_latlng(cid)[::-1]))]
+                    mine = sorted(((v, cid) for cid, v in spots if a.contains(Point(*h3.cell_to_latlng(cid)[::-1]))), reverse=True)
+                    top = max(lim / 5, mine[len(mine) // 5][0]) if mine else 0   # its densest fifth
+                    if mine:   # around its densest spot, ~1.3 km: a small town piece, not a field
+                        c0 = Point(*h3.cell_to_latlng(mine[0][1])[::-1])
+                        mine = [(v, cid) for v, cid in mine if Point(*h3.cell_to_latlng(cid)[::-1]).distance(c0) < 0.012]
+                    own = [hexp(cid) for v, cid in mine if v >= top]
                     keep = unary_union(own).buffer(0.004).buffer(-0.003) if own else a
                     land = unary_union([land, keep.intersection(a.buffer(0.0009)).intersection(full)]).buffer(0)
     water = []
@@ -234,6 +244,14 @@ def prepare(pack: Path, city: str) -> dict:
             ws = [LineString([(q["lon"], q["lat"]) for q in m["geometry"]]) for m in e.get("members", []) if m.get("role") == "outer" and m.get("geometry")]
             gs += list(polygonize(unary_union(ws)))
     gu = unary_union([g for g in gs if g.area > 4e-6]).intersection(land.buffer(-0.0004)) if gs else Polygon()
+    if c.get("wild"):   # islands and hills: land ~300 m away from any building is jungle / forest (OSM rarely maps it)
+        pts = []
+        for f in glob.glob(str(D / "bld-*.csv")):
+            for r in csv.reader(open(f), delimiter="\t"):
+                if len(r) >= 2 and r[0][:1].isdigit():
+                    pts.append(Point(float(r[1]), float(r[0])))
+        built = unary_union([q.buffer(0.0028, 4) for q in pts]) if pts else Polygon()
+        gu = unary_union([gu, land.buffer(-0.0006).difference(built).buffer(-0.0005).buffer(0.0005)])
     green = [[[[rnd1(v) for v in P(*q)] for q in g.simplify(0.0001).exterior.coords]] for g in (gu.geoms if hasattr(gu, "geoms") else [gu]) if not g.is_empty and g.geom_type == "Polygon" and g.area > 6e-6]
     # district borders
     from shapely.ops import linemerge
