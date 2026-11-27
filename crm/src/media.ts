@@ -23,6 +23,7 @@ export const KV_HARD = 990; // nothing is written above this (free tier: 1,000 w
 
 /** Reserve `n` KV writes for today; 429 when the day's budget is used up. */
 export async function kvBudget(env: Env, n: number, limit = KV_HARD): Promise<void> {
+  if (env.NO_FREE_TIER_LIMITS === '1') return;
   const day = new Date().toISOString().slice(0, 10);
   const used = await bump(env, `kv:${day}`, n);
   if (used > limit) {

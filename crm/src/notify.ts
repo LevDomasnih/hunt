@@ -79,6 +79,8 @@ export class BudgetOut extends Error { constructor(what: string) { super(`cron b
  */
 export class Budget {
   d1 = 32; reserve = 8; fetch = 40;
+  /** Off the free tier (NO_FREE_TIER_LIMITS) a tick may do far more; the cap stays as a guard against a runaway loop. */
+  constructor(free = true) { if (!free) { this.d1 = 5000; this.reserve = 1000; this.fetch = 1000; } }
   take(n = 1) { if (this.d1 < n) throw new BudgetOut('d1'); this.d1 -= n; }
   takeFetch() { if (this.fetch < 1) throw new BudgetOut('fetch'); this.fetch--; }
   canCommit(n: number) { return this.d1 + this.reserve >= n; }
@@ -601,7 +603,7 @@ const cronCtx = () => ({ dmMembers, dm, searchCtx, localDay, localMinutes, quiet
 
 export async function runCron(env: Env): Promise<void> {
   // A counting D1 binding and per-run caches: each tick stays inside the free tier's per-invocation limits.
-  const budget = new Budget();
+  const budget = new Budget(env.NO_FREE_TIER_LIMITS !== '1');
   const cronEnv = { ...env, DB: countingDB(env.DB, budget), __run: { ctx: new Map(), rcpt: new Map(), budget } } as Env;
   const jobs = [['viewings', viewingReminders], ['dates', dateReminders], ['digest', morningDigest], ['ratings', rateReminders], ['power', powerReminders], ['visa', visaReminders],
     ['bikes', (e: Env) => bikeReminders(e, cronCtx())], ['calendar', (e: Env) => calendarReminders(e, cronCtx())],

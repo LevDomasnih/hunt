@@ -69,7 +69,7 @@ cd hunt/crm && npm ci && npm run dev
 
 **В Codex** вместо Claude Code: `codex plugin marketplace add LevDomasnih/hunt`, потом `codex plugin add hunt@hunt` (или `/plugins` в TUI). Команды там навыки: `$hunt:new Тбилиси`. Подробнее в [CODEX.md](plugins/hunt/docs/CODEX.md).
 
-**Свой сервер.** Минут десять на бесплатном Cloudflare: [crm/README.md](crm/README.md).
+**Свой сервер.** Минут десять на бесплатном Cloudflare или Docker на любой машине (внутри SQLite, без Cloudflare): [crm/README.md](crm/README.md).
 
 Команды: `/hunt:new` новый поиск, `/hunt:connect` каналы, `/hunt:sweep` собрать дома, `/hunt:tick` что нового, `/hunt:deal` договор и заезд, `/hunt:region` новая страна или город, `/hunt:share` поделиться, `/hunt:schedule` по расписанию, `/hunt:close` красиво закончить.
 

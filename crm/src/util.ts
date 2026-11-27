@@ -14,6 +14,7 @@ export interface Env {
   OPEN_SIGNUP?: string; // "1" = anyone who starts the bot becomes a hunter (not recommended)
   CHAT_KEK?: string; // base64 of 32 random bytes: seals conversations at rest (src/vault.ts); unset = plain text
   AI_ON?: string; // "1" = the server runs its own assistant: the money limit is shown
+  NO_FREE_TIER_LIMITS?: string; // "1" = not on Cloudflare's free tier (own server, node/server.mjs): no daily KV write cap, no per-tick cron budget
 }
 
 export class HttpError extends Error {
