@@ -12,8 +12,8 @@ import httpx
 import pytest
 import yaml
 
-import hunt_core as hc
-from hunt_core import ToolError
+from huntcore import base, event_photos, event_sources, events, orders, packs, parties, places
+from huntcore.base import ToolError
 
 URL = "https://crm.test"
 TOKEN = "hunt_test_token"
@@ -60,8 +60,8 @@ def body(req):
 @pytest.fixture
 def net(monkeypatch, isolated):
     fake = FakeNet()
-    monkeypatch.setattr(hc.owner_of("_TRANSPORT"), "_TRANSPORT", httpx.MockTransport(fake))
-    hc.update_config(lambda c: c.__setitem__("api_url", URL))
+    monkeypatch.setattr(base, "_TRANSPORT", httpx.MockTransport(fake))
+    base.update_config(lambda c: c.__setitem__("api_url", URL))
     isolated.set_password("hunt", URL, TOKEN)
     return fake
 
@@ -74,9 +74,9 @@ def web(net, monkeypatch):
     async def fake_sleep(s):
         sleeps.append(s)
 
-    monkeypatch.setattr(hc.owner_of("_sleep"), "_sleep", fake_sleep)
-    monkeypatch.setattr(hc.owner_of("_host_last"), "_host_last", {})
-    monkeypatch.setattr(hc.owner_of("_host_interval"), "_host_interval", {})
+    monkeypatch.setattr(places, "_sleep", fake_sleep)
+    monkeypatch.setattr(event_sources, "_host_last", {})
+    monkeypatch.setattr(event_sources, "_host_interval", {})
     net.sleeps = sleeps
     net.on("GET", "/robots.txt", httpx.Response(200, text="User-agent: *\nAllow: /\n", headers={"content-type": "text/plain"}))
     return net
@@ -92,20 +92,20 @@ def test_party_get_list_and_one(net):
     net.on("GET", "/api/parties", {"parties": [{"id": "pt_1", "search_id": "s_1"}]})
     net.on("GET", "/api/parties/pt_1", {"party": {"id": "pt_1", "search_id": "s_1"}, "guests": [], "items": [],
                                         "ratings": [], "recap": None, "rules": {"quiet_after": "22:00"}})
-    assert run(hc.party_get("s_1"))["parties"][0]["id"] == "pt_1"
+    assert run(parties.party_get("s_1"))["parties"][0]["id"] == "pt_1"
     assert net.last("GET", "/api/parties").url.params["search_id"] == "s_1"
     assert net.last("GET", "/api/parties").headers["authorization"] == f"Bearer {TOKEN}"
-    assert run(hc.party_get("s_1", "pt_1"))["rules"]["quiet_after"] == "22:00"
+    assert run(parties.party_get("s_1", "pt_1"))["rules"]["quiet_after"] == "22:00"
     with pytest.raises(ToolError, match="belongs to search s_1"):
-        run(hc.party_get("s_2", "pt_1"))
+        run(parties.party_get("s_2", "pt_1"))
     with pytest.raises(ToolError, match="pt_"):
-        run(hc.party_get("s_1", "ev_1"))
+        run(parties.party_get("s_1", "ev_1"))
 
 
 def test_party_set_create_and_update(net):
     net.on("POST", "/api/parties", lambda r: httpx.Response(201, json={"party": {"id": "pt_9", **body(r)}}))
     net.on("PUT", "/api/parties/pt_9", lambda r: {"party": {"id": "pt_9", **body(r)}})
-    out = run(hc.party_set("s_1", {"title": "  Белая вечеринка у бассейна ", "starts_at": "2026-11-28T19:00:00+08:00",
+    out = run(parties.party_set("s_1", {"title": "  Белая вечеринка у бассейна ", "starts_at": "2026-11-28T19:00:00+08:00",
                                    "ends_at": "2026-11-28T23:00:00+08:00", "theme": "Белая вечеринка", "vibe": "pool",
                                    "capacity": 25, "plus_one": True, "byob": True, "wifi": True, "dress_code": "white",
                                    "address": "Jl. Pantai Batu Bolong 1", "how_to": "Gate with a blue door", "note": None}))
@@ -113,7 +113,7 @@ def test_party_set_create_and_update(net):
     sent = body(net.last("POST", "/api/parties"))
     assert sent["search_id"] == "s_1" and sent["title"] == "Белая вечеринка у бассейна" and "note" not in sent
     assert sent["capacity"] == 25 and sent["vibe"] == "pool" and sent["wifi"] is True
-    run(hc.party_set("s_1", {"status": "cancelled"}, party_id="pt_9"))
+    run(parties.party_set("s_1", {"status": "cancelled"}, party_id="pt_9"))
     assert body(net.last("PUT", "/api/parties/pt_9")) == {"status": "cancelled"}
 
 
@@ -139,25 +139,25 @@ def test_party_set_create_and_update(net):
 ])
 def test_party_set_validation(net, fields, party_id, msg):
     with pytest.raises(ToolError, match=msg):
-        run(hc.party_set("s_1", fields, party_id=party_id))
+        run(parties.party_set("s_1", fields, party_id=party_id))
     assert not net.requests
 
 
 def test_party_guests_get(net):
     net.on("GET", "/api/parties/pt_1/guests", {"guests": [{"id": "pg_1", "name": "Ann", "answer": "going", "plus_one": 1}],
                                                "counts": {"going": 1, "heads": 2}})
-    assert run(hc.party_guests_get("pt_1"))["counts"]["heads"] == 2
+    assert run(parties.party_guests_get("pt_1"))["counts"]["heads"] == 2
 
 
 def test_party_notice_draft(net):
     net.on("POST", "/api/parties/pt_1/notice-draft", lambda r: httpx.Response(201, json={"draft": {"id": "d_1", **body(r)}}))
-    out = run(hc.party_notice_draft("pt_1", "owner", "whatsapp", " +62 812 0000 0000 ", contact_id="c_1", lang="id",
+    out = run(parties.party_notice_draft("pt_1", "owner", "whatsapp", " +62 812 0000 0000 ", contact_id="c_1", lang="id",
                                     reason="owner asked to warn about parties"))
     assert out["draft"]["id"] == "d_1"
     sent = body(net.last("POST", "/api/parties/pt_1/notice-draft"))
     assert sent == {"to": "owner", "channel": "whatsapp", "address": "+62 812 0000 0000", "contact_id": "c_1", "lang": "id",
                     "reason": "owner asked to warn about parties"}
-    run(hc.party_notice_draft("pt_1", "neighbours", "telegram", "@neighbour", text="Halo! Sabtu ada acara kecil…", lang="th"))
+    run(parties.party_notice_draft("pt_1", "neighbours", "telegram", "@neighbour", text="Halo! Sabtu ada acara kecil…", lang="th"))
     assert body(net.last("POST", "/api/parties/pt_1/notice-draft"))["text"].startswith("Halo")
     n = len(net.requests)
     for args, kw, msg in [
@@ -172,38 +172,38 @@ def test_party_notice_draft(net):
         (("x_1", "owner", "whatsapp", "+62"), {}, "pt_"),
     ]:
         with pytest.raises(ToolError, match=msg):
-            run(hc.party_notice_draft(*args, **kw))
+            run(parties.party_notice_draft(*args, **kw))
     assert len(net.requests) == n
 
 
 def test_event_feedback_get(net):
     net.on("GET", "/api/event-feedback", {"feedback": [{"event_id": "ev_1", "rating": 5, "attended": True}],
                                           "venues": [{"kind": "organizer", "key": "savaya", "name": "Savaya", "avg": 4.5, "n": 2}]})
-    out = run(hc.event_feedback_get("s_1", "2026-11-01", "2026-11-21"))
+    out = run(orders.event_feedback_get("s_1", "2026-11-01", "2026-11-21"))
     assert out["venues"][0]["avg"] == 4.5
     p = net.last("GET", "/api/event-feedback").url.params
     assert p["search_id"] == "s_1" and p["from"] == "2026-11-01" and p["to"] == "2026-11-21"
-    run(hc.event_feedback_get("s_1"))
+    run(orders.event_feedback_get("s_1"))
     assert set(net.last("GET", "/api/event-feedback").url.params) == {"search_id"}
     n = len(net.requests)
     with pytest.raises(ToolError, match="YYYY-MM-DD"):
-        run(hc.event_feedback_get("s_1", "21.11.2026"))
+        run(orders.event_feedback_get("s_1", "21.11.2026"))
     with pytest.raises(ToolError, match="after"):
-        run(hc.event_feedback_get("s_1", "2026-11-21", "2026-11-01"))
+        run(orders.event_feedback_get("s_1", "2026-11-21", "2026-11-01"))
     assert len(net.requests) == n
 
 
 def test_docstrings_teach_wave9():
-    d = hc.party_notice_draft.__doc__ or ""
+    d = parties.party_notice_draft.__doc__ or ""
     for s in ("APPROVAL DRAFT", "NEVER auto-send", "polite", "OWNER'S language", "banjar", "never invent amounts", "quiet_after"):
         assert s in d, s
-    assert "STRONGEST" in (hc.event_feedback_get.__doc__ or "")
-    up = hc.events_upsert.__doc__ or ""
+    assert "STRONGEST" in (orders.event_feedback_get.__doc__ or "")
+    up = events.events_upsert.__doc__ or ""
     for s in ("event_source_read", "WIN over chat posts", "LINK, DON'T STORE", "stale", "refused", "Telegram-only"):
         assert s in up, s
     assert up.index("event_source_read") < up.index("tg_history")  # organizer pages come first in the sweep
-    assert "ONLY for photos without a public https URL" in (hc.event_photo_upload.__doc__ or "")
-    sr = hc.event_source_read.__doc__ or ""
+    assert "ONLY for photos without a public https URL" in (event_photos.event_photo_upload.__doc__ or "")
+    sr = event_sources.event_source_read.__doc__ or ""
     for s in ("robots.txt", "HuntBot/1.0 (+read-only)", "noindex", "≤ 1 request/s", "6 h", "naive_time", "Never invent an offset"):
         assert s in sr, s
 
@@ -246,7 +246,7 @@ def ld_page(*blobs, extra=""):
 
 def test_source_read_jsonld_graph_music_event(web):
     web.on("GET", "/events/", page(ld_page(LD_GRAPH, LD_LIST)), host="www.savaya.test")
-    out = run(hc.event_source_read("https://www.savaya.test/events/", tz="Asia/Makassar"))
+    out = run(event_sources.event_source_read("https://www.savaya.test/events/", tz="Asia/Makassar"))
     assert out["read"] == "jsonld" and out["site_name"] == "Savaya Bali" and out["total"] == 3 and not out["from_cache"]
     ev = {e["title"]: e for e in out["events"]}
     m = ev["Sunset Sessions: Solomun"]
@@ -264,7 +264,7 @@ def test_source_read_jsonld_graph_music_event(web):
     assert s["photo_source_url"] == "https://www.savaya.test/events/"
     assert set(m["missing"]) == {"country", "about_ru", "category"}
     # the suggestion is a valid events_upsert item once the agent adds its own words
-    hc.validate_event({**s, "country": "bali", "about_ru": "Солнечный сет на скале", "category": "club"})
+    events.validate_event({**s, "country": "bali", "about_ru": "Солнечный сет на скале", "category": "club"})
 
     naive = ev["Full Moon Gathering"]
     assert naive["naive_time"] is True and naive["start"]["value"] == "2026-12-04T19:30:00"
@@ -279,7 +279,7 @@ def test_source_read_jsonld_graph_music_event(web):
     assert all(r.headers["user-agent"] == "HuntBot/1.0 (+read-only)" for r in web.requests)
     assert web.sleeps and 0.9 <= web.sleeps[-1] <= 1.0
     # cached for 6 h: no new request, same answer; max_events slices
-    again = run(hc.event_source_read("https://www.savaya.test/events/", max_events=1, tz="Asia/Makassar"))
+    again = run(event_sources.event_source_read("https://www.savaya.test/events/", max_events=1, tz="Asia/Makassar"))
     assert again["from_cache"] and len(again["events"]) == 1 and len(web.requests) == 2
 
 
@@ -287,12 +287,12 @@ def test_source_read_utc_and_tz_conversion(web):
     ld = {"@context": "https://schema.org", "@type": "DanceEvent", "name": "Salsa night", "startDate": "2026-11-27T12:00:00Z",
           "location": {"@type": "Place", "name": "Desa"}}
     web.on("GET", "/salsa", page(ld_page(ld)), host="venue.test")
-    ev = run(hc.event_source_read("https://venue.test/salsa"))["events"][0]
+    ev = run(event_sources.event_source_read("https://venue.test/salsa"))["events"][0]
     assert ev["start"]["value"] == "2026-11-27T12:00:00+00:00" and ev["start"]["utc"] and "local" not in ev["start"]
-    ev = run(hc.event_source_read("https://venue.test/salsa", tz="Asia/Makassar"))["events"][0]
+    ev = run(event_sources.event_source_read("https://venue.test/salsa", tz="Asia/Makassar"))["events"][0]
     assert ev["start"]["local"] == "2026-11-27T20:00:00+08:00" and ev["suggested"]["starts_at"] == "2026-11-27T20:00:00+08:00"
     with pytest.raises(ToolError):
-        run(hc.event_source_read("https://venue.test/salsa", tz="Mars/Olympus"))
+        run(event_sources.event_source_read("https://venue.test/salsa", tz="Mars/Olympus"))
 
 
 def test_source_read_og_fallback(web):
@@ -301,7 +301,7 @@ def test_source_read_og_fallback(web):
                  '<meta property="og:image" content="/img/frost.jpg"><meta property="event:start_time" content="2026-11-29T15:00:00+08:00">'
                  '<meta property="og:description" content="DJs &amp; fire show on the beach"></head><body></body></html>')
     web.on("GET", "/frost", page(html_text), host="sundays.test")
-    out = run(hc.event_source_read("https://sundays.test/frost"))
+    out = run(event_sources.event_source_read("https://sundays.test/frost"))
     assert out["read"] == "og" and len(out["events"]) == 1
     ev = out["events"][0]
     assert ev["from"] == "og" and ev["single_page_guess"] is False and ev["description"] == "DJs & fire show on the beach"
@@ -316,7 +316,7 @@ def test_source_read_listing_links(web):
              '<a href="/whats-on/nye">NYE</a>')
     web.on("GET", "/events", page('<html><head><meta property="og:title" content="Sundays">'
                                   f'<meta property="og:site_name" content="Sundays"></head><body>{links}</body></html>'), host="sundays.test")
-    out = run(hc.event_source_read("https://sundays.test/events"))
+    out = run(event_sources.event_source_read("https://sundays.test/events"))
     assert out["read"] == "list" and out["events"] == []
     assert [x["url"] for x in out["links"]] == ["https://sundays.test/events/frost-moon/", "https://sundays.test/2026/11/28/sunset/",
                                                "https://sundays.test/whats-on/nye"]
@@ -328,9 +328,9 @@ def test_source_read_noindex_skips(web):
     web.on("GET", "/c", page(ld_page(LD_GRAPH), {"X-Robots-Tag": "googlebot: noindex"}), host="n.test")
     web.on("GET", "/d", page(ld_page(LD_GRAPH), {"X-Robots-Tag": "huntbot: none"}), host="n.test")
     for p in ("/a", "/b", "/d"):
-        out = run(hc.event_source_read("https://n.test" + p))
+        out = run(event_sources.event_source_read("https://n.test" + p))
         assert out["skipped"] == "noindex" and "events" not in out, p
-    assert run(hc.event_source_read("https://n.test/c"))["total"] == 1  # addressed to another bot only
+    assert run(event_sources.event_source_read("https://n.test/c"))["total"] == 1  # addressed to another bot only
 
 
 def test_source_read_robots(web):
@@ -338,23 +338,23 @@ def test_source_read_robots(web):
                                                 "User-agent: HuntBot\nDisallow: /\n", headers={"content-type": "text/plain"}),
            host="strict.test")
     web.on("GET", "/events", page(ld_page(LD_GRAPH)), host="strict.test")
-    out = run(hc.event_source_read("https://strict.test/events"))
+    out = run(event_sources.event_source_read("https://strict.test/events"))
     assert out["skipped"] == "robots" and not web.hits("GET", "/events", "strict.test")
     # a generic Disallow + Crawl-delay
     web.on("GET", "/robots.txt", httpx.Response(200, text="User-agent: *\nDisallow: /private/\nCrawl-delay: 3\n"), host="slow.test")
     web.on("GET", "/private/x", page(ld_page(LD_GRAPH)), host="slow.test")
     web.on("GET", "/events", page(ld_page(LD_GRAPH)), host="slow.test")
-    assert run(hc.event_source_read("https://slow.test/private/x"))["skipped"] == "robots"
-    assert run(hc.event_source_read("https://slow.test/events"))["total"] == 1
+    assert run(event_sources.event_source_read("https://slow.test/private/x"))["skipped"] == "robots"
+    assert run(event_sources.event_source_read("https://slow.test/events"))["total"] == 1
     assert web.sleeps[-1] > 2.5  # Crawl-delay 3 honoured
     assert len(web.hits("GET", "/robots.txt", "slow.test")) == 1  # robots.txt cached
     # 404 robots = allowed, 5xx = treat as disallowed
     web.on("GET", "/robots.txt", httpx.Response(404, text="nope"), host="open.test")
     web.on("GET", "/e", page(ld_page(LD_GRAPH)), host="open.test")
-    assert run(hc.event_source_read("https://open.test/e"))["total"] == 1
+    assert run(event_sources.event_source_read("https://open.test/e"))["total"] == 1
     web.on("GET", "/robots.txt", httpx.Response(503, text="down"), host="down.test")
     web.on("GET", "/e", page(ld_page(LD_GRAPH)), host="down.test")
-    assert run(hc.event_source_read("https://down.test/e"))["skipped"] == "robots"
+    assert run(event_sources.event_source_read("https://down.test/e"))["skipped"] == "robots"
     assert not web.hits("GET", "/e", "down.test")
 
 
@@ -362,18 +362,18 @@ def test_source_read_refuses_non_public(web):
     for bad in ("http://www.savaya.test/events", "https://10.0.0.5/events", "https://localhost/x", "https://[::1]/",
                 "https://169.254.169.254/latest", "https://192.168.1.10/", "ftp://x.test/"):
         with pytest.raises(ToolError, match="public https"):
-            run(hc.event_source_read(bad))
+            run(event_sources.event_source_read(bad))
     for social in ("https://t.me/balichatparties/1", "https://www.instagram.com/savayabali/"):
         with pytest.raises(ToolError, match="not read here"):
-            run(hc.event_source_read(social))
+            run(event_sources.event_source_read(social))
     assert not web.requests
     # a redirect to a private address is refused hop by hop
     web.on("GET", "/go", httpx.Response(302, headers={"location": "https://127.0.0.1/admin"}), host="r.test")
     with pytest.raises(ToolError, match="public https"):
-        run(hc.event_source_read("https://r.test/go"))
+        run(event_sources.event_source_read("https://r.test/go"))
     web.on("GET", "/gone", httpx.Response(404, text="gone"), host="r.test")
     with pytest.raises(ToolError, match="answered 404"):
-        run(hc.event_source_read("https://r.test/gone"))
+        run(event_sources.event_source_read("https://r.test/gone"))
 
 
 def test_source_read_ics(web):
@@ -382,7 +382,7 @@ def test_source_read_ics(web):
            "URL:https://cafe.test/open-mic\r\nEND:VEVENT\r\nBEGIN:VEVENT\r\nSUMMARY:Floating\r\nDTSTART:20261127T190000\r\n"
            "END:VEVENT\r\nEND:VCALENDAR\r\n")
     web.on("GET", "/cal.ics", httpx.Response(200, text=ics, headers={"content-type": "text/calendar"}), host="cafe.test")
-    out = run(hc.event_source_read("https://cafe.test/cal.ics"))
+    out = run(event_sources.event_source_read("https://cafe.test/cal.ics"))
     assert out["read"] == "ics" and out["total"] == 2
     a, b = out["events"]
     assert a["title"] == "Open mic, Ubud" and a["start"]["value"] == "2026-11-26T20:00:00+08:00" and not a["naive_time"]
@@ -392,7 +392,7 @@ def test_source_read_ics(web):
 
 
 def test_parse_event_time_units():
-    t = hc.parse_event_time
+    t = event_sources.parse_event_time
     assert t("2026-11-28T22:00+08:00")["value"] == "2026-11-28T22:00:00+08:00"
     assert t("2026-11-28T22:00:00.000+0700")["value"] == "2026-11-28T22:00:00+07:00"
     assert t("2026-11-28 22:00")["naive"] and t("2026-11-28")["date_only"]
@@ -401,10 +401,10 @@ def test_parse_event_time_units():
 
 
 def test_robots_allows_unit():
-    ok, delay = hc.robots_allows("User-agent: *\nDisallow: /admin\nCrawl-delay: 2\n", "https://x.test/events")
+    ok, delay = event_sources.robots_allows("User-agent: *\nDisallow: /admin\nCrawl-delay: 2\n", "https://x.test/events")
     assert ok and delay == 2.0
-    assert not hc.robots_allows("User-agent: *\nDisallow: /admin\n", "https://x.test/admin/1")[0]
-    assert hc.robots_allows("", "https://x.test/")[0] and not hc.robots_allows(None, "https://x.test/")[0]
+    assert not event_sources.robots_allows("User-agent: *\nDisallow: /admin\n", "https://x.test/admin/1")[0]
+    assert event_sources.robots_allows("", "https://x.test/")[0] and not event_sources.robots_allows(None, "https://x.test/")[0]
 
 
 # ---------------------------------------------------------------- the real packs
@@ -443,6 +443,6 @@ def test_bali_organizer_sources():
 
 
 def test_region_doc_reads_events_yaml():
-    out = hc.read_doc("bali/canggu", "events.yaml", root=REGIONS)
+    out = packs.read_doc("bali/canggu", "events.yaml", root=REGIONS)
     assert out["level"] == "bali" and "party:" in out["content"] and "events_url" in out["content"]
-    assert "events.yaml" in hc.available_docs("bali", root=REGIONS)
+    assert "events.yaml" in packs.available_docs("bali", root=REGIONS)

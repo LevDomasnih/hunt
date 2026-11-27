@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 import yaml
 from huntcore.base import ToolError
-from huntcore import base as _base, packs as _packs
+from huntcore import base as _base, util as _util
 # ---------------------------------------------------------------- sources registry
 
 SOURCE_SECTIONS = ("portals", "telegram", "facebook_groups", "whatsapp_communities", "instagram", "line", "agencies", "official", "guides", "post_request_where")
@@ -90,19 +90,19 @@ def _share_sources(text: str, base: str | None) -> tuple[str | None, list[dict],
             if not (clean.get("handle") or clean.get("url")) or re.search(r"(?:\+|wa\.me/)\s?\d[\d ()-]{7,}|t\.me/(?:\+|joinchat)", json.dumps(clean, ensure_ascii=False)):
                 skipped += 1
                 continue
-            out.append({"section": sec, "entry": _packs.jsonable(clean)})
+            out.append({"section": sec, "entry": _util.jsonable(clean)})
     pub = {k: v for k, v in cur.items() if k not in _SHARE_PRIVATE and k != "post_request_where"}
     for sec in ("portals", "agencies", "official"):
         if isinstance(pub.get(sec), list):
             pub[sec] = [{k: v for k, v in e.items() if k not in ("contact", "note")} if isinstance(e, dict) else e for e in pub[sec]]
     was = {k: v for k, v in old.items() if k not in _SHARE_PRIVATE and k != "post_request_where"}
-    changed = _packs.jsonable(pub) != _packs.jsonable({k: ([{a: b for a, b in e.items() if a not in ("contact", "note")} if isinstance(e, dict) else e for e in v] if isinstance(v, list) else v) for k, v in was.items()})
-    return (yaml.safe_dump(_packs.jsonable(pub), allow_unicode=True, sort_keys=False, width=1000) if pub and changed else None), out, skipped
+    changed = _util.jsonable(pub) != _util.jsonable({k: ([{a: b for a, b in e.items() if a not in ("contact", "note")} if isinstance(e, dict) else e for e in v] if isinstance(v, list) else v) for k, v in was.items()})
+    return (yaml.safe_dump(_util.jsonable(pub), allow_unicode=True, sort_keys=False, width=1000) if pub and changed else None), out, skipped
 
 
 def _share_bundle(country: str, folder: Path | None) -> dict:
     """What a share of this country would send: only text files that differ from the installed catalogue."""
-    inst = _packs.packs_dir()
+    inst = _util.packs_dir()
     root = folder if folder else inst
     reg = root / "regions" / country if (root / "regions").is_dir() else root / country if (root / country / "pack.yaml").is_file() else root
     if not (reg / "pack.yaml").is_file() or reg.name != country:
@@ -114,7 +114,7 @@ def _share_bundle(country: str, folder: Path | None) -> dict:
         if not p.is_file() or p.is_symlink() or p.suffix not in SHARE_EXT:
             continue
         raw = p.read_bytes()
-        base = _packs._base_text(inst, rel) if git else None
+        base = _util._base_text(inst, rel) if git else None
         if base == raw:
             continue
         text = raw.decode("utf-8")
@@ -131,7 +131,7 @@ def _share_bundle(country: str, folder: Path | None) -> dict:
                     if rx.search(ln):
                         look.append(f"{rel}:{n}: {what}: {ln.strip()[:100]}")
         files.append({"path": rel, "content": text})
-    return {"files": files, "sources": sources, "skipped": skipped, "look": look[:40], "base": _packs._git("rev-parse", "--short", "HEAD", cwd=inst) if git else None}
+    return {"files": files, "sources": sources, "skipped": skipped, "look": look[:40], "base": _util._git("rev-parse", "--short", "HEAD", cwd=inst) if git else None}
 
 
 @_base.mcp.tool()

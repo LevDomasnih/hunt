@@ -6,8 +6,8 @@ import json
 import httpx
 import pytest
 
-import hunt_core as hc
-from hunt_core import ToolError
+from huntcore import base, orders
+from huntcore.base import ToolError
 
 URL = "https://crm.test"
 
@@ -24,9 +24,9 @@ def net(monkeypatch, isolated):
         reqs.append(req)
         return httpx.Response(200, json={"ok": True, "path": req.url.path})
 
-    hc.update_config(lambda c: c.__setitem__("api_url", URL))
+    base.update_config(lambda c: c.__setitem__("api_url", URL))
     isolated.set_password("hunt", URL, "hunt_test_token")
-    monkeypatch.setattr(hc.owner_of("_TRANSPORT"), "_TRANSPORT", httpx.MockTransport(handler))
+    monkeypatch.setattr(base, "_TRANSPORT", httpx.MockTransport(handler))
     return reqs
 
 
@@ -35,10 +35,10 @@ def body(req):
 
 
 def test_supplier_set(net):
-    run(hc.supplier_set("s_1", {"name": "Fruit Market", "kind": "fruit", "min_free_delivery": 300000, "hours": None}))
+    run(orders.supplier_set("s_1", {"name": "Fruit Market", "kind": "fruit", "min_free_delivery": 300000, "hours": None}))
     assert net[-1].method == "PUT" and net[-1].url.path == "/api/searches/s_1/suppliers/new"
     assert body(net[-1])["min_free_delivery"] == 300000 and body(net[-1])["hours"] is None
-    run(hc.supplier_set("s_1", {"hours": "08:00-17:00", "delivery_fee": 30000}, supplier_id="su_abc"))
+    run(orders.supplier_set("s_1", {"hours": "08:00-17:00", "delivery_fee": 30000}, supplier_id="su_abc"))
     assert body(net[-1])["delivery_fee"] == 30000
     assert net[-1].url.path == "/api/searches/s_1/suppliers/su_abc"
 
@@ -56,62 +56,62 @@ def test_supplier_set(net):
 ])
 def test_supplier_validation(net, fields, err):
     with pytest.raises(ToolError, match=err):
-        run(hc.supplier_set("s_1", fields))
+        run(orders.supplier_set("s_1", fields))
     assert not net
 
 
 def test_supplier_id_checked(net):
     with pytest.raises(ToolError, match="supplier id"):
-        run(hc.supplier_set("s_1", {"name": "x"}, supplier_id="../x"))
+        run(orders.supplier_set("s_1", {"name": "x"}, supplier_id="../x"))
 
 
 def test_import_from_file(net, tmp_path):
     f = tmp_path / "fruit.json"
     f.write_text(json.dumps({"price_at": "2026-11-24", "items": [{"name_id": "Kangkung ", "price": 2500, "unit": "pcs"}, {"name_id": "Asparagus", "price": None}]}))
-    run(hc.catalog_import("s_1", "su_a", path=str(f)))
+    run(orders.catalog_import("s_1", "su_a", path=str(f)))
     assert net[-1].method == "POST" and net[-1].url.path == "/api/searches/s_1/suppliers/su_a/import"
     b = body(net[-1])
     assert b["price_at"] == "2026-11-24" and b["items"][0]["name_id"] == "Kangkung" and b["items"][1]["price"] is None and "full" not in b
     f.write_text(json.dumps([{"name_id": "A"}]))
-    run(hc.catalog_import("s_1", "su_a", path=str(f), full=True, price_at="2026-12-01"))
+    run(orders.catalog_import("s_1", "su_a", path=str(f), full=True, price_at="2026-12-01"))
     assert body(net[-1])["full"] is True and body(net[-1])["price_at"] == "2026-12-01"
 
 
 def test_import_errors(net, tmp_path):
     with pytest.raises(ToolError, match="either"):
-        run(hc.catalog_import("s_1", "su_a"))
+        run(orders.catalog_import("s_1", "su_a"))
     with pytest.raises(ToolError, match="No file"):
-        run(hc.catalog_import("s_1", "su_a", path=str(tmp_path / "no.json")))
+        run(orders.catalog_import("s_1", "su_a", path=str(tmp_path / "no.json")))
     pdf = tmp_path / "x.pdf"
     pdf.write_text("x")
     with pytest.raises(ToolError, match=".json"):
-        run(hc.catalog_import("s_1", "su_a", path=str(pdf)))
+        run(orders.catalog_import("s_1", "su_a", path=str(pdf)))
     bad = tmp_path / "bad.json"
     bad.write_text("{")
     with pytest.raises(ToolError, match="not valid JSON"):
-        run(hc.catalog_import("s_1", "su_a", path=str(bad)))
+        run(orders.catalog_import("s_1", "su_a", path=str(bad)))
     for items, err in [([], "non-empty"), ([{"name_ru": "x"}], r"items\[0\].*name_id"), ([{"name_id": "A"}, {"name_id": " A"}], "duplicate"), ([{"name_id": "A", "unit": "ton"}], "unit"),
                        ([{"name_id": "A", "price": "90.000"}], "price"), ([{"name_id": "A", "cost": 1}], "unknown keys"), ([{"name_id": f"n{i}"} for i in range(501)], "500")]:
         with pytest.raises(ToolError, match=err):
-            run(hc.catalog_import("s_1", "su_a", items=items))
+            run(orders.catalog_import("s_1", "su_a", items=items))
     with pytest.raises(ToolError, match="price_at"):
-        run(hc.catalog_import("s_1", "su_a", items=[{"name_id": "A"}], price_at="24.11.2026"))
+        run(orders.catalog_import("s_1", "su_a", items=[{"name_id": "A"}], price_at="24.11.2026"))
     assert not net
 
 
 def test_reads(net):
-    run(hc.catalog_get("s_1"))
+    run(orders.catalog_get("s_1"))
     assert net[-1].url.path == "/api/searches/s_1/suppliers"
-    run(hc.catalog_get("s_1", "su_a"))
+    run(orders.catalog_get("s_1", "su_a"))
     assert net[-1].url.path == "/api/searches/s_1/suppliers/su_a/catalog"
-    run(hc.orders_get("s_1", status="sent"))
+    run(orders.orders_get("s_1", status="sent"))
     assert net[-1].url.path == "/api/searches/s_1/orders" and net[-1].url.params["status"] == "sent"
     with pytest.raises(ToolError, match="status"):
-        run(hc.orders_get("s_1", status="lost"))
+        run(orders.orders_get("s_1", status="lost"))
 
 
 def test_order_set(net):
-    run(hc.order_set("s_1", "or_a", status="confirmed", total=205000, deliver_time="16:00", reply="Bisa"))
+    run(orders.order_set("s_1", "or_a", status="confirmed", total=205000, deliver_time="16:00", reply="Bisa"))
     assert net[-1].method == "PATCH" and net[-1].url.path == "/api/searches/s_1/orders/or_a"
     assert body(net[-1]) == {"status": "confirmed", "total": 205000, "deliver_time": "16:00", "reply": "Bisa"}
 
@@ -122,29 +122,37 @@ def test_order_set(net):
 ])
 def test_order_set_validation(net, kw, err):
     with pytest.raises(ToolError, match=err):
-        run(hc.order_set("s_1", "or_a", **kw))
+        run(orders.order_set("s_1", "or_a", **kw))
     with pytest.raises(ToolError, match="order id"):
-        run(hc.order_set("s_1", "x", status="sent"))
+        run(orders.order_set("s_1", "x", status="sent"))
     assert not net
 
 
 def test_sets_get(net):
-    run(hc.sets_get("s_1"))
+    run(orders.sets_get("s_1"))
     assert net[-1].method == "GET" and net[-1].url.path == "/api/searches/s_1/sets" and not net[-1].url.params
-    run(hc.sets_get("s_1", supplier_id="su_abc"))
+    run(orders.sets_get("s_1", supplier_id="su_abc"))
     assert net[-1].url.params["supplier_id"] == "su_abc"
     with pytest.raises(ToolError, match="supplier id"):
-        run(hc.sets_get("s_1", supplier_id="../x"))
+        run(orders.sets_get("s_1", supplier_id="../x"))
     assert len(net) == 2
 
 
+def core_names():
+    """Every name the core server's modules define: its tools among them."""
+    import importlib
+    import pkgutil
+    import huntcore
+    return {n for m in pkgutil.iter_modules(huntcore.__path__) for n in dir(importlib.import_module(f"huntcore.{m.name}"))}
+
+
 def test_the_agent_cannot_change_sets():
-    names = {n for n in dir(hc) if n.startswith("set")}
+    names = {n for n in core_names() if n.startswith("set")}
     assert "sets_get" in names
     assert not names & {"set_create", "set_set", "set_delete", "set_apply", "sets_set"}
 
 
 def test_the_agent_has_no_tool_to_order_or_pay():
-    names = {n for n in dir(hc) if n.startswith(("order_", "basket_", "supplier_", "catalog_"))}
+    names = {n for n in core_names() if n.startswith(("order_", "basket_", "supplier_", "catalog_"))}
     assert {"order_set", "supplier_set", "catalog_import", "catalog_get"} <= names
     assert not {n for n in names if n in ("order_create", "order_send", "order_pay", "basket_set")}

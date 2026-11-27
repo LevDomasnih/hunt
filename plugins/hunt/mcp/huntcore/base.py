@@ -1,17 +1,15 @@
 """Hunt core: base (split from hunt_core.py)."""
 from __future__ import annotations
-import contextlib
-import json
 import logging
 import os
 import re
 import sys
-import tempfile
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote
 import httpx
 import keyring
+from huntshared import config_dir, edit_json, private_dir, read_json
 try:  # mcp 1.x
     from mcp.server.fastmcp import FastMCP
     from mcp.server.fastmcp.exceptions import ToolError
@@ -64,58 +62,23 @@ mcp = FastMCP(
 
 # ---------------------------------------------------------------- config
 
-def config_dir() -> Path:
-    return Path(os.environ.get("HUNT_CONFIG_DIR") or (Path.home() / ".config" / "hunt")).expanduser()
-
-
 def config_path() -> Path:
     return config_dir() / "config.json"
 
 
+_HINT = "Fix or delete it, then call hunt_config_set."
+
+
 def load_config() -> dict[str, Any]:
-    p = config_path()
-    if not p.exists():
-        return {}
-    try:
-        return json.loads(p.read_text(encoding="utf-8") or "{}")
-    except json.JSONDecodeError as e:
-        raise ToolError(f"{p} is not valid JSON ({e}). Fix or delete it, then call hunt_config_set.")
-
-
-@contextlib.contextmanager
-def _locked():
-    d = config_dir()
-    d.mkdir(parents=True, exist_ok=True)
-    with contextlib.suppress(OSError):
-        os.chmod(d, 0o700)
-    if fcntl is None:
-        yield
-        return
-    with open(d / ".config.lock", "a+") as lf:
-        fcntl.flock(lf, fcntl.LOCK_EX)
-        try:
-            yield
-        finally:
-            fcntl.flock(lf, fcntl.LOCK_UN)
+    return read_json(config_path(), _HINT)
 
 
 def update_config(mutate) -> dict[str, Any]:
     """Read-modify-write config.json under a lock, atomically, mode 600."""
-    with _locked():
-        cfg = load_config()
+    private_dir()
+    with edit_json(config_path(), config_dir() / ".config.lock", _HINT) as cfg:
         mutate(cfg)
-        p = config_path()
-        fd, tmp = tempfile.mkstemp(dir=p.parent, prefix=".config.", suffix=".tmp")
-        try:
-            with os.fdopen(fd, "w", encoding="utf-8") as f:
-                json.dump(cfg, f, ensure_ascii=False, indent=2)
-            os.chmod(tmp, 0o600)
-            os.replace(tmp, p)
-        except BaseException:
-            with contextlib.suppress(OSError):
-                os.unlink(tmp)
-            raise
-        return cfg
+    return cfg
 
 
 def _norm_url(u: str) -> str:

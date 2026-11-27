@@ -9,8 +9,8 @@ import httpx
 import pytest
 import yaml
 
-import hunt_core as hc
-from hunt_core import ToolError
+from huntcore import base, packs, useful
+from huntcore.base import ToolError
 
 URL = "https://crm.test"
 TOKEN = "hunt_test_token"
@@ -54,8 +54,8 @@ def body(req):
 @pytest.fixture
 def net(monkeypatch, isolated):
     fake = FakeNet()
-    monkeypatch.setattr(hc.owner_of("_TRANSPORT"), "_TRANSPORT", httpx.MockTransport(fake))
-    hc.update_config(lambda c: c.__setitem__("api_url", URL))
+    monkeypatch.setattr(base, "_TRANSPORT", httpx.MockTransport(fake))
+    base.update_config(lambda c: c.__setitem__("api_url", URL))
     isolated.set_password("hunt", URL, TOKEN)
     return fake
 
@@ -64,85 +64,85 @@ def net(monkeypatch, isolated):
 
 def test_useful_get_params(net):
     net.on("GET", "/api/useful", {"country": "bali", "city": "bukit", "items": [{"id": "tg-arendabali"}], "pending": []})
-    out = run(hc.useful_get(" Bali ", city="Bukit"))
+    out = run(useful.useful_get(" Bali ", city="Bukit"))
     assert out["items"][0]["id"] == "tg-arendabali"
     req = net.last("GET", "/api/useful")
     assert req.url.params["country"] == "bali" and req.url.params["city"] == "bukit" and "status" not in req.url.params
     assert req.headers["authorization"] == f"Bearer {TOKEN}"
-    run(hc.useful_get("kz", include_rejected=True))
+    run(useful.useful_get("kz", include_rejected=True))
     req = net.last("GET", "/api/useful")
     assert req.url.params["status"] == "rejected" and "city" not in req.url.params
 
 
 def test_useful_add_normalizes_and_validates(net):
     net.on("POST", "/api/useful", lambda r: {"link": {"id": "ul_1", **body(r), "status": "approved"}}, 201)
-    out = run(hc.useful_add("bali", "Байки на Бали", "@solar_bike", category="bikes", about_ru="аренда байков", lang="ru",
+    out = run(useful.useful_add("bali", "Байки на Бали", "@solar_bike", category="bikes", about_ru="аренда байков", lang="ru",
                             activity={"members": 2352, "per_day": 12.5}, last_checked="2026-11-20"))
     sent = body(net.last("POST", "/api/useful"))
     assert sent["url"] == "https://t.me/solar_bike" and sent["category"] == "bikes" and sent["activity"] == {"members": 2352, "per_day": 12.5}
     assert "about_en" not in sent and "city" not in sent
     assert out["link"]["status"] == "approved"
-    run(hc.useful_add("bali", "BaliChat", "t.me/balichat"))
+    run(useful.useful_add("bali", "BaliChat", "t.me/balichat"))
     assert body(net.last("POST", "/api/useful"))["url"] == "https://t.me/balichat"
 
     n = len(net.requests)
     for bad_url in ("http://example.com", "javascript:alert(1)", "tg://resolve?domain=x", "example.com", "https://localhost"):
         with pytest.raises(ToolError, match="https"):
-            run(hc.useful_add("bali", "x", bad_url))
+            run(useful.useful_add("bali", "x", bad_url))
     with pytest.raises(ToolError, match="category"):
-        run(hc.useful_add("bali", "x", "https://example.com", category="casino"))
+        run(useful.useful_add("bali", "x", "https://example.com", category="casino"))
     with pytest.raises(ToolError, match="lang"):
-        run(hc.useful_add("bali", "x", "https://example.com", lang="french!"))
+        run(useful.useful_add("bali", "x", "https://example.com", lang="french!"))
     with pytest.raises(ToolError, match="YYYY-MM-DD"):
-        run(hc.useful_add("bali", "x", "https://example.com", last_checked="20.11.2026"))
+        run(useful.useful_add("bali", "x", "https://example.com", last_checked="20.11.2026"))
     with pytest.raises(ToolError, match="activity"):
-        run(hc.useful_add("bali", "x", "https://example.com", activity={"members": -1}))
+        run(useful.useful_add("bali", "x", "https://example.com", activity={"members": -1}))
     with pytest.raises(ToolError, match="Refused"):
-        run(hc.useful_add("bali", "x", "https://example.com", about_ru="паспорт 4510 123456"))
+        run(useful.useful_add("bali", "x", "https://example.com", about_ru="паспорт 4510 123456"))
     assert len(net.requests) == n, "refused calls must not reach the CRM"
 
 
 def test_useful_decide(net):
     net.on("PUT", "/api/useful/ul_9", lambda r: {"link": {"id": "ul_9", "status": body(r)["status"]}})
-    assert run(hc.useful_decide("ul_9", "approved"))["link"]["status"] == "approved"
+    assert run(useful.useful_decide("ul_9", "approved"))["link"]["status"] == "approved"
     assert body(net.last("PUT", "/api/useful/ul_9")) == {"status": "approved"}
     with pytest.raises(ToolError, match="status"):
-        run(hc.useful_decide("ul_9", "maybe"))
+        run(useful.useful_decide("ul_9", "maybe"))
     with pytest.raises(ToolError, match="Invalid id"):
-        run(hc.useful_decide("../x", "approved"))
+        run(useful.useful_decide("../x", "approved"))
 
 
 def test_useful_decide_crm_refusal(net):
     net.on("PUT", "/api/useful/ul_other", {"error": "not_yours", "message": "Only the owner of the search…"}, 403)
     with pytest.raises(ToolError, match="403 not_yours"):
-        run(hc.useful_decide("ul_other", "rejected"))
+        run(useful.useful_decide("ul_other", "rejected"))
 
 
 def test_useful_annotate_pack_and_link(net):
     net.on("POST", "/api/useful", lambda r: {"annotation": {"pack_id": body(r)["pack_id"]}}, 201)
     net.on("PUT", "/api/useful/ul_3", lambda r: {"link": {"id": "ul_3", **body(r)}})
-    out = run(hc.useful_annotate(country="bali", pack_id="tg-arendabali", activity={"members": 9001}, last_checked="2026-11-21"))
+    out = run(useful.useful_annotate(country="bali", pack_id="tg-arendabali", activity={"members": 9001}, last_checked="2026-11-21"))
     assert out["annotation"]["pack_id"] == "tg-arendabali"
     assert body(net.last("POST", "/api/useful")) == {"country": "bali", "pack_id": "tg-arendabali", "activity": {"members": 9001}, "last_checked": "2026-11-21"}
-    run(hc.useful_annotate(link_id="ul_3", activity={"per_day": 40}))
+    run(useful.useful_annotate(link_id="ul_3", activity={"per_day": 40}))
     assert body(net.last("PUT", "/api/useful/ul_3")) == {"activity": {"per_day": 40}}
     with pytest.raises(ToolError, match="activity and/or last_checked"):
-        run(hc.useful_annotate(country="bali", pack_id="x"))
+        run(useful.useful_annotate(country="bali", pack_id="x"))
     with pytest.raises(ToolError, match="country \\+ pack_id"):
-        run(hc.useful_annotate(pack_id="x", last_checked="2026-11-21"))
+        run(useful.useful_annotate(pack_id="x", last_checked="2026-11-21"))
     with pytest.raises(ToolError, match="activity needs"):
-        run(hc.useful_annotate(link_id="ul_3", activity={}))
+        run(useful.useful_annotate(link_id="ul_3", activity={}))
 
 
 def test_annotate_docstring_says_read_only():
-    doc = hc.useful_annotate.__doc__ or ""
+    doc = useful.useful_annotate.__doc__ or ""
     assert "READ-ONLY" in doc and "Never join" in doc and "never post" in doc
 
 
 # ---------------------------------------------------------------- the real packs
 
 KINDS = {"telegram", "app", "web", "hunt"}
-CATS = set(hc.USEFUL_CATEGORIES)
+CATS = set(useful.USEFUL_CATEGORIES)
 
 
 def useful_files():
@@ -194,6 +194,6 @@ def test_bali_has_the_rental_chats_and_apps():
 
 def test_region_doc_reads_useful(monkeypatch):
     monkeypatch.setenv("HUNT_REGIONS", str(REGIONS))
-    out = hc.read_doc("bali/bukit", "useful.yaml")
+    out = packs.read_doc("bali/bukit", "useful.yaml")
     assert out["level"] == "bali/bukit" and "balichat_bukit" in out["content"]
-    assert "useful.yaml" in hc.available_docs("kz")
+    assert "useful.yaml" in packs.available_docs("kz")
