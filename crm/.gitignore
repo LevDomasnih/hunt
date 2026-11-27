@@ -9,3 +9,4 @@ public/demo/
 # the server for an ordinary machine (scripts/build-node.mjs) and its database (node/server.mjs)
 /dist/
 /data/
+/dist-demo/

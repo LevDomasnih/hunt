@@ -1,0 +1,11 @@
+name: An idea
+description: Something Hunt should do or do differently.
+labels: [idea]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: The idea
+      description: What you and your friends were trying to do, and where Hunt got in the way.
+    validations:
+      required: true
