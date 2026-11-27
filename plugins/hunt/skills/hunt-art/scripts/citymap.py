@@ -31,6 +31,7 @@ import yaml
 HERE = Path(__file__).resolve().parent
 CACHE = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "hunt" / "art" / "citymap"
 HOSTS = ["https://maps.mail.ru/osm/tools/overpass/api/interpreter", "https://overpass-api.de/api/interpreter", "https://overpass.kumi.systems/api/interpreter", "https://overpass.private.coffee/api/interpreter"]
+DEADLINE = 300   # seconds per request: a mirror that holds the socket open without answering is dropped
 UA = {"User-Agent": "HuntCityMap/1.0 (+read-only)"}
 
 
@@ -61,20 +62,68 @@ def areas_of(pack: Path, city: str):
 
 
 # ---------------------------------------------------------------- fetch
-def overpass(body: str, out: Path, ok) -> bool:
+def fetch_by(h: str, body: str, end: float) -> bytes:
+    """One Overpass request with a read timeout and a wall-clock deadline, so a silent or trickling mirror fails over."""
+    rq = urllib.request.Request(h, data=urllib.parse.urlencode({"data": body}).encode(), headers=UA)
+    with urllib.request.urlopen(rq, timeout=200, context=tls()) as f:
+        buf = bytearray()
+        while chunk := f.read1(1 << 16):   # read1 returns after each packet, so the deadline is checked
+            buf += chunk
+            if time.time() > end:
+                raise TimeoutError("deadline")
+        return bytes(buf)
+
+
+def overpass(body: str, out: Path, ok, rounds: int = 5, hosts: list | None = None, deadline: int = DEADLINE) -> bool:
     if out.exists():
         return True
-    for _ in range(5):
-        for h in HOSTS:
+    for k in range(rounds):
+        if k:
+            time.sleep(30)
+        for h in hosts or HOSTS:
             try:
-                r = urllib.request.urlopen(urllib.request.Request(h, data=urllib.parse.urlencode({"data": body}).encode(), headers=UA), timeout=280, context=tls()).read()
+                r = fetch_by(h, body, time.time() + deadline)
                 if ok(r):
                     out.write_bytes(r); print(" ", out.name, f"{len(r) // 1024} KB", flush=True); return True
             except Exception as e:  # busy mirrors answer 429/504 or close the connection
                 print(" ", out.name, "retry", h.split("/")[2], str(e)[:50], flush=True)
-        time.sleep(30)
     print(" ", out.name, "FAILED", flush=True)
     return False
+
+
+ROADS: dict = {}
+
+
+def has_roads(D: Path, s0: float, w0: float, s1: float, w1: float) -> bool:
+    """Whether any main or minor road runs through the tile: then an empty building answer is a busy mirror, not the sea."""
+    if D not in ROADS:
+        pts = []
+        for f in ("roads.json", "roads2.json"):
+            if (D / f).exists():
+                pts += [(g["lat"], g["lon"]) for e in json.loads((D / f).read_text())["elements"] for g in e.get("geometry", [])]
+        ROADS[D] = pts
+    return any(s0 <= la <= s1 and w0 <= lo <= w1 for la, lo in ROADS[D])
+
+
+def bld(D: Path, name: str, s0: float, w0: float, s1: float, w1: float, depth: int = 0) -> None:
+    """Buildings of a tile (centre, levels) as CSV. Busy mirrors refuse heavy tiles, so a tile that fails once on the main
+    mirror is fetched as four quarters, down to 1/256 of the tile (about 2 km); only those get every mirror and retries."""
+    quarters = [(f"{name}-{q}", s0 + (s1 - s0) * a / 2, w0 + (w1 - w0) * b / 2) for q, (a, b) in enumerate([(0, 0), (0, 1), (1, 0), (1, 1)])]
+    split = lambda: [bld(D, n, qa, qb, qa + (s1 - s0) / 2, qb + (w1 - w0) / 2, depth + 1) for n, qa, qb in quarters]
+    if (D / f"{name}.csv").exists():
+        return
+    if glob.glob(str(D / f"{name}-*.csv")):   # quarters started earlier: finish them
+        split()
+        return
+    land = has_roads(D, s0, w0, s1, w1)
+    ok = lambda r: r.lstrip(b"-")[:1].isdigit() or (not r.strip() and not land)
+    q_ = f'[out:csv(::lat,::lon,"building:levels","building";false)][timeout:250];way["building"]({s0:.4f},{w0:.4f},{s1:.4f},{w1:.4f});out center;'
+    if depth < 4:
+        if not overpass(q_, D / f"{name}.csv", ok, rounds=1, hosts=HOSTS[:1], deadline=150):
+            split()
+        return
+    # a small tile with roads and no buildings (rice fields, forest) is real after two rounds of empty answers
+    overpass(q_, D / f"{name}.csv", ok, rounds=2) or overpass(q_, D / f"{name}.csv", lambda r: r.lstrip(b"-")[:1].isdigit() or not r.strip(), rounds=3)
 
 
 def fetch(pack: Path, city: str) -> None:
@@ -88,7 +137,7 @@ def fetch(pack: Path, city: str) -> None:
     W, S, E, N = u.bounds
     W, S, E, N = W - .012, S - .012, E + .012, N + .012
     D = CACHE / city; D.mkdir(parents=True, exist_ok=True)
-    J, CSV = (lambda r: r[:1] == b"{"), (lambda r: r[:1].isdigit() or not r.strip())   # a tile over the sea has no buildings: empty is fine
+    J = lambda r: r[:1] == b"{"
     bb = f"{S:.4f},{W:.4f},{N:.4f},{E:.4f}"
     print(city, bb, flush=True)
     overpass(f'[out:json][timeout:250];(way["natural"="water"]({bb});relation["natural"="water"]({bb});way["waterway"="riverbank"]({bb});way["natural"="coastline"]({bb}););out geom;', D / "water.json", J)
@@ -98,8 +147,9 @@ def fetch(pack: Path, city: str) -> None:
     n = max(2, min(4, math.ceil(max((E - W) * math.cos(math.radians(S)), N - S) / 0.08)))
     for i in range(n):
         for j in range(n):
-            t = f"{S + (N - S) * i / n:.4f},{W + (E - W) * j / n:.4f},{S + (N - S) * (i + 1) / n:.4f},{W + (E - W) * (j + 1) / n:.4f}"
-            overpass(f'[out:csv(::lat,::lon,"building:levels","building";false)][timeout:250];way["building"]({t});out center;', D / f"bld-{i}{j}.csv", CSV)
+            s0, w0, s1, w1 = S + (N - S) * i / n, W + (E - W) * j / n, S + (N - S) * (i + 1) / n, W + (E - W) * (j + 1) / n
+            t = f"{s0:.4f},{w0:.4f},{s1:.4f},{w1:.4f}"
+            bld(D, f"bld-{i}{j}", s0, w0, s1, w1)
             overpass(f'[out:json][timeout:250];way["highway"~"^(residential|living_street)$"]({t});out geom;', D / f"res-{i}{j}.json", J)
     if c["country"] and not (D / "kontur.gpkg").exists():   # one download per country, shared by its cities
         K = CACHE / f"kontur-{c['country']}.gpkg"
@@ -152,7 +202,7 @@ def prepare(pack: Path, city: str) -> dict:
             cnt = Counter()
             for f in glob.glob(str(D / "bld-*.csv")):
                 for r in csv.reader(open(f), delimiter="\t"):
-                    if len(r) >= 2 and r[0][:1].isdigit():
+                    if len(r) >= 2 and r[0].lstrip("-")[:1].isdigit():
                         cnt[h3.latlng_to_cell(float(r[0]), float(r[1]), 9)] += 1
             spots, lim = [(cid, n) for cid, n in cnt.items()], c["trimb"]
         else:
@@ -197,7 +247,7 @@ def prepare(pack: Path, city: str) -> dict:
         bpts = []
         for f in sorted(glob.glob(str(D / "bld-*.csv"))):
             for r in csv.reader(open(f), delimiter="\t"):
-                if len(r) >= 2 and r[0][:1].isdigit():
+                if len(r) >= 2 and r[0].lstrip("-")[:1].isdigit():
                     bpts.append(Point(float(r[1]), float(r[0])))
         btree = STRtree(bpts) if bpts else None
         sea = [pg for pg in polygonize(unary_union(coast + [box(FW, FS, FE, FN).boundary])) if btree is not None and len(btree.query(pg, predicate="contains")) < max(3, pg.area * 2e4)]
@@ -248,7 +298,7 @@ def prepare(pack: Path, city: str) -> dict:
         pts = []
         for f in glob.glob(str(D / "bld-*.csv")):
             for r in csv.reader(open(f), delimiter="\t"):
-                if len(r) >= 2 and r[0][:1].isdigit():
+                if len(r) >= 2 and r[0].lstrip("-")[:1].isdigit():
                     pts.append(Point(float(r[1]), float(r[0])))
         built = unary_union([q.buffer(0.0028, 4) for q in pts]) if pts else Polygon()
         gu = unary_union([gu, land.buffer(-0.0006).difference(built).buffer(-0.0005).buffer(0.0005)])
@@ -265,7 +315,7 @@ def prepare(pack: Path, city: str) -> dict:
     RAW = []
     for f in sorted(glob.glob(str(D / "bld-*.csv"))):
         for r in csv.reader(open(f), delimiter="\t"):
-            if len(r) >= 2 and r[0][:1].isdigit():
+            if len(r) >= 2 and r[0].lstrip("-")[:1].isdigit():
                 lo, la = float(r[1]), float(r[0])
                 if W0 < lo < E0 and S0 < la < N0:
                     RAW.append((lo, la, r[2] if len(r) > 2 else ""))
@@ -297,6 +347,8 @@ def prepare(pack: Path, city: str) -> dict:
                 lvs = [v for v in (lvl(RAW[i][2]) for i in idx) if v]
                 lv = statistics.median(lvs) if lvs else (2 if len(idx) else 0)
                 dens = len(idx) / max(part.area / 1e-6, 0.05)
+                if c.get("lvd") and len(lvs) < 2 and len(idx) >= 6:   # OSM has no levels here: dense blocks are the taller core
+                    lv = 7 if dens > c["lvd"] * 2.5 else 4 if dens > c["lvd"] else 2
                 if len(lvs) >= 2 and lv >= 5:   # a few big towers on a superblock (new centres) are still city, not a field
                     dens = max(dens, 8)
                 near = ptree.query(part.buffer(0.002)) if ptree is not None else []
