@@ -17,6 +17,8 @@ Renting abroad with friends is a second job: forty chats, three languages, a pri
 
 **Hunt is a personal assistant for that job.** It finds homes, writes to owners from your own accounts and in their language, bargains, plans viewings, reads the lease. Your group votes and says yes. After move-in the same project runs the house: money, orders, what is on tonight, documents.
 
+<p align="center"><b><a href="https://hunt-demo.hunt-crm.workers.dev">Try the demo</a></b> · no sign-in, invented people and toy homes, nothing is sent</p>
+
 <p align="center"><img src="docs/deal.gif" alt="Saying yes to a deal: the message is sent after eight seconds, with an undo" width="100%"></p>
 
 ## What it does
@@ -61,7 +63,7 @@ The same app is a Telegram Mini App on the phone:
 
 ## Try it
 
-**Look first.** Any Hunt server has a demo without sign-in: invented people, toy homes, nothing is sent. Open `/app` and press *See the demo*. On your machine:
+**Look first.** [The demo](https://hunt-demo.hunt-crm.workers.dev) runs in your browser without sign-in: invented people, toy homes, nothing is sent. Any Hunt server has it too (`/app` → *See the demo*). On your machine:
 
 ```bash
 git clone https://github.com/LevDomasnih/hunt && git clone https://github.com/LevDomasnih/hunt-data
