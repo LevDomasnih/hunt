@@ -4,6 +4,8 @@ import { Env, HttpError } from './util';
 /** The local-dev placeholder from crm/README.md; only this exact value switches the bot to dry mode. */
 export const FAKE_BOT_TOKEN = '000:fake';
 const botToken = (env: Env) => String(env.TG_BOT_TOKEN ?? '').trim();
+/** The Bot API host: Telegram's, or a fake one the integration tests run (TG_API). */
+const apiBase = (env: Env) => (env.TG_API || 'https://api.telegram.org').replace(/\/+$/, '');
 export const tgDry = (env: Env) => botToken(env) === FAKE_BOT_TOKEN;
 
 /** Dry-run log line without secrets: agent tokens, signed link/photo/doc tokens, invite codes, guide tokens. */
@@ -21,7 +23,7 @@ export async function tg<T = any>(env: Env, method: string, params: Record<strin
     if (!(params instanceof FormData)) console.log(`[tg dry] ${method} ${redactForLog(JSON.stringify(params)).slice(0, 1500)}`);
     throw new HttpError(503, 'telegram_off', `${method}: no real bot token configured`);
   }
-  const url = `https://api.telegram.org/bot${botToken(env)}/${method}`;
+  const url = `${apiBase(env)}/bot${botToken(env)}/${method}`;
   const init: RequestInit =
     params instanceof FormData
       ? { method: 'POST', body: params }
@@ -52,7 +54,7 @@ export function photoOf(msg: any): { file_id: string; w: number; h: number } | n
 /** Stream a Telegram file (photo) to the client. */
 export async function fileResponse(env: Env, file_id: string): Promise<Response> {
   const f = await tg<{ file_path: string }>(env, 'getFile', { file_id });
-  const r = await fetch(`https://api.telegram.org/file/bot${botToken(env)}/${f.file_path}`);
+  const r = await fetch(`${apiBase(env)}/file/bot${botToken(env)}/${f.file_path}`);
   return new Response(r.body, {
     status: r.status,
     headers: {
@@ -67,7 +69,7 @@ const INLINE_DOC = new Set(['application/pdf', 'image/jpeg', 'image/png', 'image
 /** Stream any Telegram file (documents, videos) with its own type; nothing is kept on our side. Bot API getFile: up to 20 MB. */
 export async function tgFileStream(env: Env, file_id: string, opts: { mime?: string | null; name?: string | null; download?: boolean } = {}): Promise<Response> {
   const f = await tg<{ file_path: string; file_size?: number }>(env, 'getFile', { file_id });
-  const r = await fetch(`https://api.telegram.org/file/bot${botToken(env)}/${f.file_path}`);
+  const r = await fetch(`${apiBase(env)}/file/bot${botToken(env)}/${f.file_path}`);
   const name = (opts.name || f.file_path.split('/').pop() || 'file').replace(/[^\w.\- ]+/g, '_');
   // Only PDFs, images, video, audio and 3D models open inline; anything else (html, svg, …) is a download. Never sniffed, sandboxed.
   const type = String(opts.mime || r.headers.get('content-type') || 'application/octet-stream').split(';')[0].trim().toLowerCase();

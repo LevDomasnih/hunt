@@ -1,4 +1,4 @@
-import { Env, HttpError, json, body, now, rid, sha256hex, inflate, LISTING_JSON, event, parseJson, sensitive, safeEqual, httpUrl, redactSensitive, guardBody } from './util';
+import { Env, HttpError, json, body, now, rid, sha256hex, inflate, LISTING_JSON, event, parseJson, sensitive, httpUrl, redactSensitive, guardBody } from './util';
 import { publishListing, postDayPlan, notify } from './bot';
 import { draftToOwner, notifyIncoming } from './notify';
 import { routeLink } from './cards';
@@ -101,10 +101,6 @@ async function ownDossier(ctx: Ctx, did: string): Promise<string | null> {
   return r?.search_id ?? null;
 }
 
-/** Searches the caller owns (their agent works on them). */
-async function ownSearchIds(ctx: Ctx): Promise<string[]> {
-  return ((await ctx.env.DB.prepare("SELECT search_id FROM members WHERE user_id=? AND role='owner'").bind(ctx.user.id).all<{ search_id: string }>()).results ?? []).map((r) => r.search_id);
-}
 const ownContact = (ctx: Ctx, cid: string) => isOwnContact(ctx.env, ctx.user.id, cid);
 /** Wave 8.1: a short house name, one line, at most 40 characters; '' / null clears it. */
 export function cleanShortName(v: unknown): string | null {

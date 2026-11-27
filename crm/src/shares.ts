@@ -1,7 +1,7 @@
 // "Share a city" (a pull request through the bot). The agent prepares a request with the pack's files; the hunter gets a card with
 // the full text of what would leave, and nothing leaves before "Отправить". Then this server passes it to the sources registry, the
 // registry admin decides, and the hunter hears the answer. On the admin's own server the same bot shows the proposals to review.
-import { Env, HttpError, json, body, now, rid, esc, sha256hex, sensitive, parseJson } from './util';
+import { Env, HttpError, json, now, rid, esc, sha256hex, sensitive, parseJson } from './util';
 import { rateLimit } from './media';
 import { registry } from './sources';
 import { tg, kb, tgDry } from './tg';

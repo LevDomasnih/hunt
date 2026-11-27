@@ -1,4 +1,4 @@
-import { Env, HttpError, now, rid, sha256hex, event, esc, parseJson, safeEqual, sensitive, redactSensitive, httpUrl } from './util';
+import { Env, now, rid, sha256hex, event, esc, parseJson, safeEqual, sensitive, redactSensitive, httpUrl } from './util';
 import { orderDraft } from './orders';
 import { tg, kb, photoOf } from './tg';
 import { putAlbum, kvPhoto } from './media';
@@ -95,7 +95,7 @@ export async function publishListing(env: Env, l: any, files: (File | string)[] 
   if (!s?.tg_chat_id) return parseJson<any[]>(l.photos, []);
   const owner = await ownerOf(env, s);
   const lang = owner?.lang ?? 'en';
-  let photos = parseJson<any[]>(l.photos, []);
+  const photos = parseJson<any[]>(l.photos, []);
 
   if (files && files.length) {
     // Mirror the album into the group (Telegram needs the bytes again; KV keeps the originals).

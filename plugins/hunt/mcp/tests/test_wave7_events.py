@@ -363,7 +363,7 @@ def flyer(w=1600, h=1000, lines=18, bg=(250, 235, 40)):
         font = ImageFont.load_default(size=40)
     except TypeError:
         font = None
-    for i, y in enumerate(range(20, 20 + 55 * lines, 55)):
+    for y in range(20, 20 + 55 * lines, 55):
         if y > h - 40:
             break
         d.text((30, y), "PARTY FRIDAY 22:00 DJ LINEUP FREE ENTRY BEFORE 23 GUEST LIST", fill=(10, 10, 10), font=font)

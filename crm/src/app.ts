@@ -123,8 +123,6 @@ async function appUser(req: Request, env: Env): Promise<AppUser> {
 }
 
 const FEED_KINDS = ['vote', 'rating', 'comment', 'chat', 'instruction', 'draft_decided', 'listing_added', 'viewing_changed', 'brief_changed', 'checklist', 'thread', 'expense', 'settled', 'issue', 'document', 'checks', 'stage_changed'];
-const maxIso = (xs: (string | null | undefined)[]) =>
-  xs.reduce<string | null>((m, x) => (x && (!m || Date.parse(x) > Date.parse(m)) ? x : m), null);
 
 async function roleIn(env: Env, sid: string, uid: string): Promise<{ role: string; region: string; title: string }> {
   const r = await env.DB.prepare('SELECT m.role, s.region, s.title FROM members m JOIN searches s ON s.id=m.search_id WHERE m.search_id=? AND m.user_id=?')
@@ -678,7 +676,7 @@ export async function handleApp(req: Request, env: Env, path: string): Promise<R
   // Free-form instruction for the agent ("running late" from the plan screen). The agent reads it in the digest.
   if (path === '/app/api/instruction' && req.method === 'POST') {
     const b = await body(req);
-    const r = await member(env, b.search_id, user.id, VOTERS);
+    await member(env, b.search_id, user.id, VOTERS);
     const text = String(b.text ?? '').trim().slice(0, 1000);
     if (!text) throw new HttpError(400, 'no_text');
     await event(env, b.search_id, 'instruction', b.ref ?? null, user.id, {
@@ -765,7 +763,7 @@ export async function handleApp(req: Request, env: Env, path: string): Promise<R
   // Shared money (members who can vote).
   if (path === '/app/api/expense' && req.method === 'POST') {
     const b = await body(req);
-    const r = await member(env, b.search_id, user.id, VOTERS);
+    await member(env, b.search_id, user.id, VOTERS);
     const s = await DB.prepare('SELECT id, brief FROM searches WHERE id=?').bind(b.search_id).first<any>();
     const expense = await insertExpense(env, s, { ...b, paid_by: b.paid_by ?? user.id }, user.id);
     return json({ ok: true, expense });
@@ -782,7 +780,7 @@ export async function handleApp(req: Request, env: Env, path: string): Promise<R
   }
   if (path === '/app/api/expense-receipt' && req.method === 'POST') {
     const sid = new URL(req.url).searchParams.get('search_id') ?? '';
-    const r = await member(env, sid, user.id, VOTERS);
+    await member(env, sid, user.id, VOTERS);
     const key = `r/${sid}/${user.id}-${Date.now().toString(36)}`;
     await rateLimit(env, 'upload', user.id, 60);
     await putImage(env, req, key);
@@ -804,7 +802,7 @@ export async function handleApp(req: Request, env: Env, path: string): Promise<R
   }
   if (path === '/app/api/shares' && req.method === 'POST') {
     const b = await body(req);
-    const r = await member(env, b.search_id, user.id, VOTERS);
+    await member(env, b.search_id, user.id, VOTERS);
     const ids = ((await DB.prepare('SELECT user_id FROM members WHERE search_id=?').bind(b.search_id).all<any>()).results ?? []).map((x) => x.user_id);
     const shares = cleanWeights(b.shares, ids);
     await DB.prepare('UPDATE searches SET shares=?, updated_at=? WHERE id=?').bind(JSON.stringify(shares), now(), b.search_id).run();
@@ -871,7 +869,7 @@ export async function handleApp(req: Request, env: Env, path: string): Promise<R
   }
   if (path === '/app/api/doc-request' && req.method === 'POST') {
     const b = await body(req);
-    const r = await member(env, b.search_id, user.id, VOTERS);
+    await member(env, b.search_id, user.id, VOTERS);
     const deal = await DB.prepare('SELECT listing_id FROM deals WHERE search_id=? ORDER BY updated_at DESC LIMIT 1').bind(b.search_id).first<any>();
     const lid = b.listing_id ?? deal?.listing_id;
     if (!lid) throw new HttpError(404, 'no_deal');
@@ -930,7 +928,7 @@ export async function handleApp(req: Request, env: Env, path: string): Promise<R
   // Rent split by rooms (members who can vote).
   if (path === '/app/api/rooms' && req.method === 'POST') {
     const b = await body(req);
-    const r = await member(env, b.search_id, user.id, VOTERS);
+    await member(env, b.search_id, user.id, VOTERS);
     const ids = ((await DB.prepare('SELECT user_id FROM members WHERE search_id=?').bind(b.search_id).all<any>()).results ?? []).map((x) => x.user_id);
     const rooms = cleanRooms(b.rooms, ids);
     await DB.prepare('UPDATE searches SET rooms=?, updated_at=? WHERE id=?').bind(rooms ? JSON.stringify(rooms) : null, now(), b.search_id).run();
@@ -940,7 +938,7 @@ export async function handleApp(req: Request, env: Env, path: string): Promise<R
   // Meter photo: stored in KV, waits for the agent to read the balance (instruction meter_photo).
   if (path === '/app/api/meter-photo' && req.method === 'POST') {
     const sid = new URL(req.url).searchParams.get('search_id') ?? '';
-    const r = await member(env, sid, user.id, VOTERS);
+    await member(env, sid, user.id, VOTERS);
     const key = `m/${sid}/${user.id}-${Date.now().toString(36)}`;
     await rateLimit(env, 'upload', user.id, 60);
     await putImage(env, req, key);
@@ -989,7 +987,7 @@ export async function handleApp(req: Request, env: Env, path: string): Promise<R
   // A member marks a move-out step done (the agent sees an event).
   if (path === '/app/api/moveout-step' && req.method === 'POST') {
     const b = await body(req);
-    const r = await member(env, b.search_id, user.id, VOTERS);
+    await member(env, b.search_id, user.id, VOTERS);
     if (!(MOVEOUT_STEPS as readonly string[]).includes(b.key) || !['done', 'todo'].includes(b.status)) throw new HttpError(400, 'bad_step');
     const row = await DB.prepare('SELECT steps FROM moveouts WHERE search_id=?').bind(b.search_id).first<{ steps: string }>();
     if (!row) throw new HttpError(404, 'no_moveout');
@@ -1002,7 +1000,7 @@ export async function handleApp(req: Request, env: Env, path: string): Promise<R
   // Places near: add / remove a brief anchor (members who can vote); the agent recomputes travel times.
   if (path === '/app/api/anchor' && req.method === 'POST') {
     const b = await body(req);
-    const r = await member(env, b.search_id, user.id, VOTERS);
+    await member(env, b.search_id, user.id, VOTERS);
     const row = await DB.prepare('SELECT brief FROM searches WHERE id=?').bind(b.search_id).first<{ brief: string }>();
     const brief = parseJson<any>(row?.brief, {});
     const list: any[] = Array.isArray(brief.anchors) ? brief.anchors : [];
@@ -1028,14 +1026,14 @@ export async function handleApp(req: Request, env: Env, path: string): Promise<R
   // Contacts directory: add / edit an entry, add a group, delete an entry (members who can vote).
   if (path === '/app/api/dir-entry' && req.method === 'POST') {
     const b = await body(req);
-    const r = await member(env, b.search_id, user.id, VOTERS);
+    await member(env, b.search_id, user.id, VOTERS);
     const s = await DB.prepare('SELECT id, dir_groups FROM searches WHERE id=?').bind(b.search_id).first<any>();
     const entry = await setDirEntry(env, s, b.id ?? 'new', b, user.id);
     return json({ ok: true, entry });
   }
   if (path === '/app/api/dir-group' && req.method === 'POST') {
     const b = await body(req);
-    const r = await member(env, b.search_id, user.id, VOTERS);
+    await member(env, b.search_id, user.id, VOTERS);
     return json({ ok: true, groups: await addDirGroup(env, b.search_id, b.name) });
   }
   if (path === '/app/api/dir-delete' && req.method === 'POST') {
@@ -1068,7 +1066,7 @@ export async function handleApp(req: Request, env: Env, path: string): Promise<R
   // "Add from Google Maps": the link goes to the agent (places_import).
   if (path === '/app/api/places-link' && req.method === 'POST') {
     const b = await body(req);
-    const r = await member(env, b.search_id, user.id, VOTERS);
+    await member(env, b.search_id, user.id, VOTERS);
     const url = String(b.url ?? '').trim();
     if (!/^https:\/\/(maps\.app\.goo\.gl\/[\w-]+|goo\.gl\/maps\/[\w-]+|(www\.)?google\.(com|[a-z]{2,3}|com?\.[a-z]{2})\/maps(\/[^\s<>"']*)?)(\?[^\s<>"']*)?$/i.test(url) || url.length > 2000)
       throw new HttpError(400, 'bad_url', 'A Google Maps link (maps.app.goo.gl/… or google.com/maps/…)');
@@ -1078,7 +1076,7 @@ export async function handleApp(req: Request, env: Env, path: string): Promise<R
   // Bikes: add / edit (members), a rental payment (→ an expense), a pickup checklist tick.
   if (path === '/app/api/bike' && req.method === 'POST') {
     const b = await body(req);
-    const r = await member(env, b.search_id, user.id, VOTERS);
+    await member(env, b.search_id, user.id, VOTERS);
     const { id, search_id, ...rest } = b;
     return json({ ok: true, ...(await setBike(env, { id: search_id }, id ?? 'new', rest, user.id)) });
   }
@@ -1100,7 +1098,7 @@ export async function handleApp(req: Request, env: Env, path: string): Promise<R
   // 3D act: ask the agent to send it to the owners (outreach with approval).
   if (path === '/app/api/scan-send' && req.method === 'POST') {
     const b = await body(req);
-    const r = await member(env, b.search_id, user.id, VOTERS);
+    await member(env, b.search_id, user.id, VOTERS);
     await event(env, b.search_id, 'instruction', null, user.id, { name: user.display_name, kind: 'scan_send', text: user.lang === 'ru' ? 'Отправь 3D-акт заезда хозяевам (ссылки на сканы), через черновик на одобрение' : 'Send the 3D move-in act to the owners (scan links), as a draft for approval' });
     return json({ ok: true });
   }
@@ -1114,7 +1112,7 @@ export async function handleApp(req: Request, env: Env, path: string): Promise<R
   // Things bought with the villa.
   if (path === '/app/api/item' && req.method === 'POST') {
     const b = await body(req);
-    const r = await member(env, b.search_id, user.id, VOTERS);
+    await member(env, b.search_id, user.id, VOTERS);
     const { id, search_id, ...rest } = b;
     const item = await setItem(env, { id: search_id }, id ?? 'new', rest, user.id);
     return json({ ok: true, item, items: await itemsView(env, search_id) });
@@ -1130,7 +1128,7 @@ export async function handleApp(req: Request, env: Env, path: string): Promise<R
   }
   if (path === '/app/api/item-photo' && req.method === 'POST') {
     const sid = new URL(req.url).searchParams.get('search_id') ?? '';
-    const r = await member(env, sid, user.id, VOTERS);
+    await member(env, sid, user.id, VOTERS);
     const key = `i/${sid}/${user.id}-${Date.now().toString(36)}`;
     await rateLimit(env, 'upload', user.id, 60);
     await putImage(env, req, key);

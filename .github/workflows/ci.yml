@@ -38,9 +38,18 @@ jobs:
       - name: Types (server and Mini App)
         working-directory: hunt/crm
         run: npm run typecheck
-      - name: Build the Mini App
+      - name: Lint (Biome)
         working-directory: hunt/crm
-        run: node scripts/build-web.mjs
+        run: npm run lint
+      - name: Build the Mini App (with the countries from hunt-data)
+        working-directory: hunt/crm
+        run: node scripts/copy-art.mjs --no-demo && node scripts/build-web.mjs
+      - name: The demo in Chrome, phone and desk (every screen, no script errors)
+        working-directory: hunt/crm
+        run: npm run test:ui
+      - name: Roles, money and the cron (local worker, fake Telegram)
+        working-directory: hunt/crm
+        run: npm run test:roles
       - name: Site (local worker, sign-in, sessions, pages)
         working-directory: hunt/crm
         run: node scripts/test-web.mjs
@@ -50,11 +59,11 @@ jobs:
       - name: core/schema.sql matches the migrations
         working-directory: hunt/crm
         run: node scripts/schema.mjs --check
-      - name: The Node server (site, agent token on Node + SQLite)
+      - name: The Node server (site, agent token, roles and money on Node + SQLite)
         working-directory: hunt/crm
         env:
           HUNT_TEST_SERVER: node
-        run: node scripts/build-node.mjs && HUNT_TEST_NO_BUILD=1 node scripts/test-web.mjs && HUNT_TEST_NO_BUILD=1 npm run test:agent-token
+        run: node scripts/build-node.mjs && HUNT_TEST_NO_BUILD=1 node scripts/test-web.mjs && HUNT_TEST_NO_BUILD=1 npm run test:agent-token && HUNT_TEST_NO_BUILD=1 npm run test:roles
       - name: Sources registry
         working-directory: hunt
         run: node registry/scripts/test.mjs
@@ -108,6 +117,9 @@ jobs:
           repository: LevDomasnih/hunt-data
           path: hunt-data
       - uses: astral-sh/setup-uv@v6
+      - name: Lint (ruff)
+        working-directory: hunt/plugins/hunt/mcp
+        run: uvx ruff@0.17.5 check .
       - name: Plugin tests
         working-directory: hunt/plugins/hunt/mcp
         run: >-

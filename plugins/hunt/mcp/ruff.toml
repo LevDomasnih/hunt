@@ -1,0 +1,15 @@
+# Lint for the plugin's MCP servers (uvx ruff@0.17.5 check plugins/hunt/mcp). Bugs first: pyflakes, syntax, bugbear.
+target-version = "py311"
+line-length = 200
+
+[lint]
+select = ["F", "E9", "B"]
+ignore = [
+  "B008",  # function calls in defaults: FastMCP's Field(...) idiom
+  "B904",  # raise … from err inside except: noisy for tool errors
+  "E501",
+]
+
+[lint.per-file-ignores]
+"hunt_core.py" = ["F401", "F403", "F405"]  # re-exports the huntcore modules' names
+"tests/*" = ["B011"]

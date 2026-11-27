@@ -15,7 +15,7 @@ import { PathStrip } from './path.js';
 import { html } from 'htm/preact';
 
 // ---------------------------------------------------------------- today
-export function feedView(item, all?) {
+export function feedView(item) {
   const d = D();
   const tz = tzNow();
   if (item.type === 'message') {

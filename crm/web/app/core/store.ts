@@ -1,7 +1,6 @@
 import type { Store, ToastAct } from '../../types/api.js';
 import { TG, tg } from './env.js';
 import { LANG, t } from './i18n.js';
-import { html } from 'htm/preact';
 import { useEffect, useState } from 'preact/hooks';
 
 // ---------------------------------------------------------------- store

@@ -89,7 +89,7 @@ export function areaStats(id, a, geo, beds = briefBeds()) {
 }
 export const rangeText = (r, cur) => (r ? (r[0] === r[1] ? money(r[0], cur) : `${scaled(r[0], r[1])}–${money(r[1], cur)}`) : '—');
 export const areaName = (a) => a?.name?.[LANG] ?? a?.name?.en ?? '';
-export function inBrief(id, a) {
+export function inBrief(id: string, _area?: unknown) {
   const bd = D()?.search?.brief?.districts ?? [];
   return bd.includes(id);
 }

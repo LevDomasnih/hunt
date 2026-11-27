@@ -18,6 +18,6 @@ Layout: the Mini App is TypeScript in `crm/web/` (`app.ts` entry + `app/<area>/*
 
 Worker + D1 + KV on the Cloudflare free tier, or the same Worker on Node + SQLite (`crm/node/`: D1/KV-shaped adapters and the server, built by `scripts/build-node.mjs`, `crm/Dockerfile`; see `crm/README.md`). Keep `src/` free of `node:` imports so `wrangler deploy` stays the same; API reference `core/API.md`; region pack format `core/PACK_FORMAT.md` (keep `plugins/hunt/docs/PACK_FORMAT.md` identical). The Codex plugin: `plugins/hunt/docs/CODEX.md`; after changing `plugins/hunt/commands/` run `node scripts/codex-skills.mjs`.
 
-Checks: `npm run typecheck`, `node scripts/test-web.mjs`, `npm run test:agent-token`, `npm run test:households` and `node scripts/schema.mjs --check` in `crm/` (after a migration: `node scripts/schema.mjs`), `node registry/scripts/test.mjs`, the plugin tests (`plugins/hunt/mcp/README.md`), `node scripts/codex-skills.mjs --check`.
+Checks: `npm run typecheck`, `node scripts/test-web.mjs`, `npm run test:agent-token`, `npm run test:households`, `npm run test:roles`, `npm run test:ui` (the demo in Chrome; needs `public/` built), `npm run lint` (Biome) and `node scripts/schema.mjs --check` in `crm/`; `uvx ruff@0.17.5 check plugins/hunt/mcp` (after a migration: `node scripts/schema.mjs`), `node registry/scripts/test.mjs`, the plugin tests (`plugins/hunt/mcp/README.md`), `node scripts/codex-skills.mjs --check`.
 
 Deploys (`npm run migrate`, `npm run deploy`) only with the human's go-ahead; our own server deploys with the config from `../hunt-studio`.

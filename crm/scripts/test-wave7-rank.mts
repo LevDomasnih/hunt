@@ -86,7 +86,9 @@ for (const seed of [0, 1, 7, 42, 999]) {
 }
 const a = diversify(items, { seed: 1 }).map((x) => x.key).join(), b = diversify(items, { seed: 2 }).map((x) => x.key).join();
 ok(a !== b && a === diversify(items, { seed: 1 }).map((x) => x.key).join(), '"Ещё" reshuffles with a new seed, same seed = same order');
-const r = rng(5); ok(r() !== r(), 'rng advances');
+const r = rng(5);
+// biome-ignore lint/suspicious/noSelfCompare: two calls, two values
+ok(r() !== r(), 'rng advances');
 
 // ---- filters
 const f = (s: string) => new Set(s.split(',').filter(Boolean));

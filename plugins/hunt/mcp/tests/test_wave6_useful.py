@@ -4,7 +4,6 @@ from _regions import real_regions
 import asyncio
 import json
 import re
-from pathlib import Path
 
 import httpx
 import pytest

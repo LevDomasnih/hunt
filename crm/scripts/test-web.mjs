@@ -1,24 +1,14 @@
 #!/usr/bin/env node
-// The site: sign-in through the bot (number match, one-time link), cookie sessions, the two-language chat.
-// Starts its own local server (wrangler dev, or the Node build with HUNT_TEST_SERVER=node) on a throwaway database.   node scripts/test-web.mjs
-import { execFileSync, spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { localServer } from './local-server.mjs';
 
-const crm = join(dirname(fileURLToPath(import.meta.url)), '..');
 const srv = await localServer({ name: 'web', port: 8798, inspector: 9798 });
-const { BASE, exec, rows, kvKeys, dir } = srv;
+const { BASE, exec, rows } = srv;
 const log = { slice: (...a) => srv.log().slice(...a) };
 let pass = 0, fail = 0;
 const ok = (c, name, x = '') => { if (c) pass++; else { fail++; console.log(`FAIL ${name} ${JSON.stringify(x)?.slice(0, 300)}`); } };
-const sleep = (ms) => new Promise((f) => setTimeout(f, ms));
 const H = (t) => createHash('sha256').update(t).digest('hex'), T0 = '2026-01-01T00:00:00Z';
 exec([['ann', 201], ['bob', 202], ['eve', 203]].flatMap(([n, tg]) => [`INSERT INTO users (id, tg_user_id, display_name, lang, created_at) VALUES ('u_${n}', ${tg}, '${n}', 'ru', '${T0}')`, `INSERT INTO hunters (user_id, is_admin, created_at) VALUES ('u_${n}', 0, '${T0}')`, `INSERT INTO tokens (hash, user_id, label, created_at) VALUES ('${H(`tok-${n}`)}', 'u_${n}', 't', '${T0}')`]).join(';'));
-const stop = () => srv.stop();
 try {
   await srv.start();
   const post = async (path, b, h = {}) => { const r = await fetch(BASE + path, { method: 'POST', headers: { 'content-type': 'application/json', origin: BASE, 'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X) Chrome/140 Safari/537', ...h }, body: JSON.stringify(b ?? {}) }); return { status: r.status, j: await r.json().catch(() => null), cookie: r.headers.get('set-cookie') }; };

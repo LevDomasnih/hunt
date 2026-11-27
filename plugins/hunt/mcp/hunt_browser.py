@@ -36,7 +36,6 @@ import base64
 import contextlib
 import json
 import os
-import platform
 import re
 import sys
 import tempfile

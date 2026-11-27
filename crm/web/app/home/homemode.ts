@@ -21,7 +21,7 @@ import { W3Head, dealListing, hm, homeName, inPlace, isLiving, rangeDM } from '.
 import { agoRel } from './house.js';
 import { nxWeeks } from './moveout.js';
 import { DG_ICON, dgName, dirEntries } from './people.js';
-import { briefMentionsSurf, sfH, surfBest, surfLine, surfWind, useSurf } from './surf.js';
+import { briefMentionsSurf, sfH, surfBest, surfWind, useSurf } from './surf.js';
 import { html } from 'htm/preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 
@@ -341,8 +341,6 @@ export function MoreScreen() {
   const card = (title, rows) => html`<div class="card w2-list hm-more"><div class="w2-lh"><span>${title}</span></div>${rows.filter(Boolean)}</div>`;
   const nDocs = (d.documents ?? []).length;
   const cur = d.money?.currency ?? briefCur(d.search);
-  const month = d.money?.totals?.this_month;
-  const today = hmToday();
   const all = dirEntries();
   const grps = [...new Set(all.map((e) => e.grp))].map((k) => dgName(k).toLowerCase());
   const bikes = (d.bikes ?? []).filter((b) => b.status !== 'returned');
@@ -403,7 +401,6 @@ export function Archive() {
 // ---------------------------------------------------------------- wave 6 · D: home-centred map
 export let hmLayers = null;
 export function HomeMap({ arg }) {
-  const d = D();
   const l = homeListing();
   if (!l || l.lat == null || l.lng == null) return html`<main class="screen"><div class="center-msg">${t('hm_map_none')}</div><${Nav} tab="map" /></main>`;
   return html`<${HomeMapInner} l=${l} evening=${arg === 'evening'} />`;

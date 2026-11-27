@@ -323,7 +323,6 @@ export function GuestsScreen() {
   </main>`;
 }
 export function GuestDraftCard({ x }) {
-  const d = D();
   const [edit, setEdit] = useState(false);
   const [text, setText] = useState(x.text ?? '');
   const [busy, setBusy] = useState(false);

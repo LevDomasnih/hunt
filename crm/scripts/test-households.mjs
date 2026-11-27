@@ -1,23 +1,12 @@
 #!/usr/bin/env node
-// Two hunters on one Hunt never see or change each other's things; /delete removes a person completely.
-// Starts its own local server (wrangler dev, or the Node build with HUNT_TEST_SERVER=node) on a throwaway database; nothing leaves the machine.   node scripts/test-households.mjs
-import { execFileSync, spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
-import { DatabaseSync } from 'node:sqlite';
-import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { localServer } from './local-server.mjs';
 
-const crm = join(dirname(fileURLToPath(import.meta.url)), '..');
 const srv = await localServer({ name: 'hh', port: 8796, inspector: 9796, vars: { SETUP_KEY: 'setup', LINK_SECRET: 'link-secret' } });
-const { BASE, exec, rows, kvKeys, dir } = srv;
+const { BASE, exec, rows, kvKeys } = srv;
 const log = { slice: (...a) => srv.log().slice(...a) };
 let pass = 0, fail = 0;
 const ok = (c, name, x = '') => { if (c) pass++; else { fail++; console.log(`FAIL ${name} ${JSON.stringify(x)?.slice(0, 400)}`); } };
-const sleep = (ms) => new Promise((f) => setTimeout(f, ms));
-async function until(fn, ms) { const t = Date.now(); for (;;) { const v = await fn(); if (v) return v; if (Date.now() - t > ms) return null; await sleep(250); } }
 const H = (t) => createHash('sha256').update(t).digest('hex'), T0 = '2026-01-01T00:00:00Z';
 
 exec([['ann', 201, 0], ['bob', 202, 0], ['adm', 203, 1]].flatMap(([n, tg, a]) => [

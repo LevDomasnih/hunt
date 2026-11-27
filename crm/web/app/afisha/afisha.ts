@@ -8,7 +8,7 @@ import { back, go, openLink, sp } from '../core/routing.js';
 import { closeSheet, emit, hap, openSheet, toast } from '../core/store.js';
 import { fmtDMshort } from '../home/calendar.js';
 import { Toggle } from '../home/docs.js';
-import { BackIfWeb, hm, minLabel, msgCard, regionPack, skel } from '../home/helpers.js';
+import { BackIfWeb, minLabel, msgCard, regionPack, skel } from '../home/helpers.js';
 import { homeListing, homeMode } from '../home/homemode.js';
 import { Av, Icon } from '../ui/icons.js';
 import { Nav, Sticker, Typed, WaterCard } from '../ui/pieces.js';

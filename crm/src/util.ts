@@ -14,6 +14,7 @@ export interface Env {
   OPEN_SIGNUP?: string; // "1" = anyone who starts the bot becomes a hunter (not recommended)
   CHAT_KEK?: string; // base64 of 32 random bytes: seals conversations at rest (src/vault.ts); unset = plain text
   AI_ON?: string; // "1" = the server runs its own assistant: the money limit is shown
+  TG_API?: string; // the Bot API host; unset = https://api.telegram.org (the integration tests point it at a fake)
   NO_FREE_TIER_LIMITS?: string; // "1" = not on Cloudflare's free tier (own server, node/server.mjs): no daily KV write cap, no per-tick cron budget
 }
 
@@ -188,7 +189,7 @@ export function redactSensitive(text: string | null | undefined): string | null 
   let s = String(text);
   if (!sensitive(s)) return s;
   const mark = '[•••]';
-  s = s.replace(new RegExp(PASSPORT_IN_TEXT.source, 'gi'), (x, kw) => `${kw} ${mark}`).replace(new RegExp(RU_SERIES.source, 'gi'), mark).replace(new RegExp(RU_FOREIGN.source, 'gi'), mark);
+  s = s.replace(new RegExp(PASSPORT_IN_TEXT.source, 'gi'), (_x, kw) => `${kw} ${mark}`).replace(new RegExp(RU_SERIES.source, 'gi'), mark).replace(new RegExp(RU_FOREIGN.source, 'gi'), mark);
   s = s.replace(NIK_BARE, (x) => (nikLike(x) ? mark : x));
   s = s.replace(DIGIT_RUN, (x) => (x.replace(/\D/g, '').length >= 13 && cardInRun(x) ? mark : x));
   return sensitive(s) ? mark : s;

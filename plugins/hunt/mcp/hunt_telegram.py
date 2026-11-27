@@ -1307,9 +1307,10 @@ async def tg_send(account: str = "hunt", peer: str = "", text: str = "", reply_t
         try:
             msg = await c.send_message(e, text, reply_to=reply_to)
         except errors.FloodWaitError as ex:
-            until = _now().timestamp() + ex.seconds
-            update_state(acc.label, lambda s: s.update(cooldown_until=until, cooldown_reason=f"FLOOD_WAIT {ex.seconds}s"))
-            raise _stop(f"Telegram rate limit (FLOOD_WAIT {ex.seconds}s). Nothing was sent. No sends from '{acc.label}' "
+            secs = ex.seconds
+            until = _now().timestamp() + secs
+            update_state(acc.label, lambda s: s.update(cooldown_until=until, cooldown_reason=f"FLOOD_WAIT {secs}s"))
+            raise _stop(f"Telegram rate limit (FLOOD_WAIT {secs}s). Nothing was sent. No sends from '{acc.label}' "
                         f"before {_iso(datetime.fromtimestamp(until, timezone.utc))}.")
         except errors.PeerFloodError:
             until = _now().timestamp() + 24 * 3600

@@ -60,7 +60,7 @@ try {
   // ---- search
   const homes = [['villa-field', 'Вилла у поля', 22000000, 'uluwatu', 'Печату', -8.832, 115.128, 'field'], ['loft-bingin', 'Лофт у Бингина', 18000000, 'uluwatu', 'Бингин', -8.806, 115.1045, 'loft'], ['round-house', 'Круглый дом', 23000000, 'ungasan', 'Унгасан', -8.829, 115.166, 'round'], ['stilt-house', 'Дом на сваях', 24000000, 'jimbaran', 'Джимбаран', -8.793, 115.171, 'stilt'], ['roof-two', 'Дом с террасой', 26000000, 'nusa_dua', 'Нуса-Дуа', -8.805, 115.215, 'roof']];
   for (const [id, title, price, , area, lat, lng] of homes) await api('PUT', `/api/searches/${SR}/listings/${id}`, { title, price, currency: 'IDR', bedrooms: 2, area_text: area, lat, lng, fields: { pool: 'private', internet_mbps: 100, electricity: 'included' }, summary: 'Свет и сад' });
-  exec(homes.map(([id, , , d, , , , k]) => `UPDATE listings SET photos='${photo(k)}' WHERE id='${id}';`).join('\n') + `\nUPDATE listings SET photos='${photo('roof')}' WHERE id='home-roof';`
+  exec(homes.map(([id, , , , , , , k]) => `UPDATE listings SET photos='${photo(k)}' WHERE id='${id}';`).join('\n') + `\nUPDATE listings SET photos='${photo('roof')}' WHERE id='home-roof';`
     + [['surf', 'Урок сёрфа%'], ['market', 'Ночной рынок'], ['padel', 'Падел%']].map(([k, n]) => `\nUPDATE afisha SET photo_url='https://demo.local/ev-${k}.webp', photo_score=0.9, photo_credit='CC0' WHERE title LIKE '${n}';`).join(''));
   for (const [id, , , , , , , ] of homes.slice(0, 4)) await api('PUT', `/api/listings/${id}/flood`, { level: id === 'loft-bingin' ? 'medium' : 'low', summary: 'ok', sources: [] });
   await api('PUT', '/api/listings/villa-field/checks', { verdict: 'ok', signals: [{ status: 'ok', title: 'Фото не повторяются' }] });
@@ -116,7 +116,7 @@ try {
   await rec('/app/api/state');
   for (const s of [SR, HM, BG]) {
     await rec('/app/api/state?s=' + s); await rec('/app/api/state-more?s=' + s); await rec('/app/api/desk?s=' + s); await rec('/app/api/orders?s=' + s); await rec('/app/api/event-plan?s=' + s);
-    for (const [key, path] of [['parties', `/app/api/parties?s=${s}`], ['evening', `/app/api/evening?s=${s}`], ['surf', `/app/api/surf?search_id=${s}`]]) { const j = await app(path).catch(() => null); if (j) out[path] = j; }
+    for (const [, path] of [['parties', `/app/api/parties?s=${s}`], ['evening', `/app/api/evening?s=${s}`], ['surf', `/app/api/surf?search_id=${s}`]]) { const j = await app(path).catch(() => null); if (j) out[path] = j; }
     const st = out['/app/api/state?s=' + s];
     for (const t of st.threads) out[`/app/api/thread?s=${s}&c=${t.contact_id}`] = await app(`/app/api/thread?s=${s}&c=${t.contact_id}`);
     for (const l of st.listings) for (const p of [`/app/api/negotiation?listing_id=${l.id}`, `/app/api/listing?id=${l.id}`, `/app/api/location?id=${l.id}`]) { const j = await app(p).catch(() => null); if (j) out[p] = j; }
@@ -135,7 +135,7 @@ try {
   const pic = { 'Урок сёрфа для новичков': 'surf', 'Ночной рынок': 'market', 'Падел вчетвером': 'padel' };
   const walk = (x) => { if (!x || typeof x !== 'object') return; if (x.title && pic[x.title] && x.photo) x.photo = { url: `/demo-home/ev-${pic[x.title]}.webp`, credit: 'CC0' }; for (const v of Object.values(x)) walk(v); };
   walk(out);
-  let txt = JSON.stringify(out).replaceAll('https://demo.local/', '/demo-home/').replace(/"photo_token":"[^"]*"/g, '"photo_token":""').replace(/"invite_link":"[^"]*"/g, '"invite_link":null').replaceAll('demo_bot', '').replace(/"pack":"bali"/g, '"pack":"demo"');
+  const txt = JSON.stringify(out).replaceAll('https://demo.local/', '/demo-home/').replace(/"photo_token":"[^"]*"/g, '"photo_token":""').replace(/"invite_link":"[^"]*"/g, '"invite_link":null').replaceAll('demo_bot', '').replace(/"pack":"bali"/g, '"pack":"demo"');
   writeFileSync(join(crm, 'public/demo-home/demo.json'), txt);
   const en = toEnglish(JSON.parse(txt)), enD = en.data;
   for (const v of Object.values(enD)) if (v?.user?.lang) v.user.lang = 'en';

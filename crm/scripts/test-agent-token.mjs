@@ -1,22 +1,12 @@
 #!/usr/bin/env node
-// "Подключить агента": a new agent token from the Mini App (owner only, revokes only the earlier agent tokens, stored as a hash,
-// rate-limited, logged) and which client the plugin runs in (X-Hunt-Client → searches.agent_client → the app state).
-// Starts its own local server (wrangler dev, or the Node build with HUNT_TEST_SERVER=node) on a throwaway database.   node scripts/test-agent-token.mjs
-import { execFileSync, spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { localServer } from './local-server.mjs';
 
-const crm = join(dirname(fileURLToPath(import.meta.url)), '..');
 const srv = await localServer({ name: 'agent', port: 8792, inspector: 9792 });
-const { BASE, exec, rows, kvKeys, dir } = srv;
+const { BASE, exec, rows } = srv;
 const log = { slice: (...a) => srv.log().slice(...a) };
 let pass = 0, fail = 0;
 const ok = (c, name, x = '') => { if (c) pass++; else { fail++; console.log(`FAIL ${name} ${JSON.stringify(x)?.slice(0, 300)}`); } };
-const sleep = (ms) => new Promise((f) => setTimeout(f, ms));
 const H = (t) => createHash('sha256').update(t).digest('hex'), T0 = '2026-01-01T00:00:00Z';
 exec([
   ...[['ann', 201], ['bob', 202], ['eve', 203]].flatMap(([n, tg]) => [
@@ -29,7 +19,6 @@ exec([
   `INSERT INTO searches (id, owner_id, title, region, brief, created_at, updated_at) VALUES ('s_a', 'u_ann', 'Bukit', 'bali/bukit', '{}', '${T0}', '${T0}')`,
   `INSERT INTO members (search_id, user_id, role) VALUES ('s_a', 'u_ann', 'owner'), ('s_a', 'u_bob', 'member')`,
 ].join(';'));
-const stop = () => srv.stop();
 try {
   await srv.start();
   const A = 'hunt_s=c-ann', B = 'hunt_s=c-bob', E = 'hunt_s=c-eve';

@@ -16,7 +16,7 @@ export const EN = {
 export function toEnglish(x) {
   const keys = Object.keys(EN).sort((a, b) => b.length - a.length), left = new Set();
   const tr = (s) => { let o = s; for (const k of keys) if (o.includes(k)) o = o.replaceAll(k, EN[k]); return o; };
-  const go = (v, k, parent) => {
+  const go = (v, k) => {
     if (typeof v === 'string') { const o = tr(v); if (/[А-Яа-яЁё]/.test(o) && !(k === 'ru' || /^su_/.test(k ?? '') || /^name_ru$/.test(k ?? '') || /_ru$/.test(k ?? ''))) left.add(`${k}: ${o.slice(0, 60)}`); return o; }
     if (Array.isArray(v)) return v.map((y) => go(y, k, v));
     // the Russian half of a {ru, en} pair with an English text stays Russian: the English screen reads `en`, and word swaps would only
