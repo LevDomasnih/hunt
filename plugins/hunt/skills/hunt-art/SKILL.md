@@ -9,7 +9,7 @@ A region looks like Hunt when three things are true: **one solid bright colour**
 
 Read `references/style.md` before drawing. Look at `examples/regions.webp` (what good looks like) and at the SVGs in `examples/` (a front head, a profile, a bust, a body, a sign, a skyline).
 
-Files you make, inside `regions/<country>/art/`:
+Files you make, inside `regions/<country>/art/` of the pack (a hunt-data checkout, or the folder `/hunt:region` drafts):
 
 ```
 theme.yaml               screen colour + accent for maps

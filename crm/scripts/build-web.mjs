@@ -1,8 +1,8 @@
 #!/usr/bin/env node
-// Builds the Mini App and the site: web/app.ts (TypeScript, Preact + htm from a pinned CDN build) → public/app.js + source map.
+// Builds the Mini App and the site: web/app.ts (TypeScript, Preact + htm from npm) → public/app.js + source map.
 //   node scripts/build-web.mjs           one build (predev, predeploy, CI)
 //   node scripts/build-web.mjs --watch   rebuild on every change
-// The CDN modules stay external (loaded by the browser as before); everything else is one ES module.
+// https:// imports stay external (loaded by the browser); everything else is one ES module.
 import { build, context } from 'esbuild';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';

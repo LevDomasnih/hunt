@@ -8,7 +8,7 @@ If someone runs Hunt for you, they send an invite link `t.me/<bot>?start=…`. O
 
 ## Deploy your own
 
-You need a Cloudflare account (free) and Node 20+.
+You need a Cloudflare account (free) and Node 22.5+.
 
 1. **Bot.** In Telegram open @BotFather → `/newbot` → get the token. Then `/setdomain` is not needed; but do `/newapp` (or Bot Settings → Configure Mini App → Main App) and set the URL to `https://<your-worker>.workers.dev/app` after step 4.
 2. **Install and log in.**

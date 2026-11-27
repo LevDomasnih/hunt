@@ -16,7 +16,8 @@ Talks to the Hunt CRM (a Cloudflare Worker, see core/API.md), reads region packs
 
 Config:  ~/.config/hunt/config.json  ({"api_url": ..., "digest_cursors": {...}})
 Token:   OS keychain via `keyring`, service "hunt", username = api_url
-Packs:   $HUNT_REGIONS or <plugin root>/regions (plugin root = parent of mcp/, or $CLAUDE_PLUGIN_ROOT)
+Packs:   $HUNT_REGIONS, else the hunt-data copy packs_update installs, else a hunt-data checkout next to the hunt
+         repository, else <plugin root>/regions (only _generic; plugin root = parent of mcp/, or $CLAUDE_PLUGIN_ROOT)
 
 Env overrides (for headless/CI use): HUNT_CONFIG_DIR, HUNT_API_URL, HUNT_TOKEN.
 Client:  `--client codex` (the Codex manifest passes it), else $HUNT_CLIENT, else claude-code; sent as X-Hunt-Client so the

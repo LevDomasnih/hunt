@@ -1,5 +1,7 @@
 # WhatsApp channel (browser adapter)
 
+> The default is Hunt's own headless profile (`hunt-browser`, see `headless.md`). This page is the fallback: the hunter's Chrome driven with the browser extension.
+
 WhatsApp has no usable API for personal outreach (Cloud API needs opt-in and templates; unofficial libraries risk a ban). Hunt drives **WhatsApp Web in the hunter's own browser** with the browser tools (Claude in Chrome). Ideally a separate Chrome profile linked to the hunting number.
 
 All snippets below were used in real hunts. Run them with the browser JavaScript tool in the WhatsApp tab.

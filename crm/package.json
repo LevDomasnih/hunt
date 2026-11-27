@@ -2,6 +2,7 @@
   "name": "hunt-crm",
   "private": true,
   "type": "module",
+  "engines": { "node": ">=22.5" },
   "scripts": {
     "art": "node scripts/copy-art.mjs",
     "build:web": "node scripts/build-web.mjs",
@@ -11,7 +12,9 @@
     "deploy": "wrangler deploy",
     "migrate": "wrangler d1 migrations apply hunt --remote",
     "typecheck": "tsc --noEmit && tsc --noEmit -p web",
-    "test:households": "node scripts/test-households.mjs"
+    "test:households": "node scripts/test-households.mjs",
+    "test:agent-token": "node scripts/test-agent-token.mjs",
+    "schema": "node scripts/schema.mjs"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20261119.1",

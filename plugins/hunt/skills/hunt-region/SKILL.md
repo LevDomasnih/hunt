@@ -5,7 +5,7 @@ description: Create, extend or refresh a Hunt region pack (country, city or dist
 
 # Region packs
 
-Format: `docs/PACK_FORMAT.md` in the repository (also summarized below). Packs live in `regions/<country>/<city>/…` inside the plugin. Lower levels override upper ones.
+Format: `docs/PACK_FORMAT.md` in the repository (also summarized below). Packs live in the data repository [hunt-data](https://github.com/LevDomasnih/hunt-data) as `regions/<country>/<city>/…` (`regions_root()` finds it: `$HUNT_REGIONS`, the copy `packs_update` installs, or a checkout next to hunt); only `_generic` ships inside the plugin. Lower levels override upper ones.
 
 ## When a pack is missing or stale
 

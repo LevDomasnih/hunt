@@ -18,6 +18,6 @@ Layout: the Mini App is TypeScript in `crm/web/` (`app.ts` entry + `app/<area>/*
 
 Worker + D1 + KV on the Cloudflare free tier (see `crm/README.md`); API reference `core/API.md`; region pack format `core/PACK_FORMAT.md` (keep `plugins/hunt/docs/PACK_FORMAT.md` identical). The Codex plugin: `plugins/hunt/docs/CODEX.md`; after changing `plugins/hunt/commands/` run `node scripts/codex-skills.mjs`.
 
-Checks: `node scripts/test-web.mjs` and `npm run test:households` in `crm/`, `node registry/scripts/test.mjs`, the plugin tests (`plugins/hunt/mcp/README.md`), `node scripts/codex-skills.mjs --check`.
+Checks: `npm run typecheck`, `node scripts/test-web.mjs`, `npm run test:agent-token`, `npm run test:households` and `node scripts/schema.mjs --check` in `crm/` (after a migration: `node scripts/schema.mjs`), `node registry/scripts/test.mjs`, the plugin tests (`plugins/hunt/mcp/README.md`), `node scripts/codex-skills.mjs --check`.
 
 Deploys (`npm run migrate`, `npm run deploy`) only with the human's go-ahead; our own server deploys with the config from `../hunt-studio`.

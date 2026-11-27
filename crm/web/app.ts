@@ -1,4 +1,4 @@
-// Hunt Mini App. Preact + htm from a pinned CDN build, no bundler.
+// Hunt Mini App and site: the entry esbuild bundles (scripts/build-web.mjs) with Preact + htm from npm.
 import { AccessScreen } from './access.js';
 import { AgentScreen } from './agent.js';
 import { Afisha, EventDetail } from './app/afisha/afisha.js';

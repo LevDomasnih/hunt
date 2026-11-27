@@ -85,7 +85,7 @@ Members throw a party at the house; the region pack's party rules (`party_get` �
 
 ## Pace (avoid bans)
 
-New account: warm up 3–7 days. Then 5–10 new chats a day (max 20–30), 2–5 minutes apart, respect quiet hours. One first message per landlord and at most one follow-up. On any limit warning: stop that channel for the day and tell the hunter.
+New account: warm up 3–7 days. Then 5–10 new chats a day, never above the tools' daily caps (WhatsApp 15, Messenger 10, Instagram 8, Telegram 20 by default), 2–5 minutes apart, respect quiet hours. One first message per landlord and at most one follow-up. On any limit warning: stop that channel for the day and tell the hunter.
 
 ## Re-let, directory and move-out messages
 

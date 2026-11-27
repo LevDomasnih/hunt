@@ -1,6 +1,6 @@
 # Hunt MCP servers
 
-Two local MCP servers ship with the Hunt plugin. Both are single-file Python scripts with
+Four local MCP servers ship with the Hunt plugin (`hunt-bridge` is the fourth: see `../channels/BRIDGE.md`). They are Python scripts with
 [PEP 723](https://peps.python.org/pep-0723/) inline dependencies, started by `uv run --script`
 (see `../.mcp.json`). The only thing you need installed is [uv](https://docs.astral.sh/uv/); uv
 fetches Python and the dependencies into its cache on first start.
@@ -10,8 +10,9 @@ fetches Python and the dependencies into its cache on first start.
 | `hunt` | `hunt_core.py` + `huntcore/` | Hunt CRM API (Cloudflare Worker), region packs, time/date/route helpers, event photo quality gate (Pillow). `hunt_core.py` is the entry (uv script header, `mcp.run()`); the code lives in `huntcore/<area>.py` (base, searches, listings, messages, deals, money, house, home, places, packs, registry, routes, location, flood, items, living, stage, useful, events, parties, orders, event_photos, event_sources, portals). A module reads another's names as `_area.name`; tests patch a name where it is defined: `monkeypatch.setattr(hc.owner_of("name"), "name", …)` |
 | `hunt-telegram` | `hunt_telegram.py` | Telegram user account over Telethon: login by QR, inbox, history, media, guarded sending, folders |
 | `hunt-browser` | `hunt_browser.py` | WhatsApp Web (QR), Messenger and Instagram DMs in dedicated headless Chromium profiles: inbox, history, media, verified sending, pacing. See `../channels/headless.md`. Tests: `uv run --with pytest --with playwright==1.60.0 --with mcp --with keyring pytest mcp/tests/test_browser_local.py` |
+| `hunt-bridge` | `hunt_bridge.py` | any other channel through a small local HTTP service (Signal, a local portal): see `../channels/BRIDGE.md` |
 
-Both work with `mcp` 1.x (`FastMCP`) and 2.x (`MCPServer`).
+All work with `mcp` 1.x (`FastMCP`) and 2.x (`MCPServer`).
 
 ## Setup
 

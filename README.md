@@ -151,7 +151,7 @@ Rental, immigration and brokerage rules differ by country. In Indonesia acting f
 | `registry/` | the sources registry and the proposals (`scripts/proposals.py` puts approved ones into hunt-data) |
 | `DESIGN.md` | the design system |
 
-Adding a channel, a country or a screen: start with [BRIDGE.md](plugins/hunt/channels/BRIDGE.md), [PACK_FORMAT.md](core/PACK_FORMAT.md) or [DESIGN.md](DESIGN.md). Checks: `npm run typecheck`, `node scripts/test-web.mjs` and `npm run test:households` in `crm/` (the last two need `hunt-data` next to `hunt`), `uv run` the plugin tests (`plugins/hunt/mcp/README.md`), `node registry/scripts/test.mjs`, `node scripts/codex-skills.mjs --check`. CI runs all of them on every push.
+Adding a channel, a country or a screen: start with [BRIDGE.md](plugins/hunt/channels/BRIDGE.md), [PACK_FORMAT.md](core/PACK_FORMAT.md) or [DESIGN.md](DESIGN.md). Checks: `npm run typecheck`, `node scripts/test-web.mjs`, `npm run test:agent-token` and `npm run test:households` in `crm/` (the last needs `hunt-data` next to `hunt`), `uv run` the plugin tests (`plugins/hunt/mcp/README.md`), `node registry/scripts/test.mjs`, `node scripts/codex-skills.mjs --check`. CI runs all of them on every push.
 
 ## Licence
 

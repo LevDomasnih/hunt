@@ -41,9 +41,15 @@ jobs:
       - name: Build the Mini App
         working-directory: hunt/crm
         run: node scripts/build-web.mjs
-      - name: Site (static checks)
+      - name: Site (local worker, sign-in, sessions, pages)
         working-directory: hunt/crm
         run: node scripts/test-web.mjs
+      - name: Agent token (local worker)
+        working-directory: hunt/crm
+        run: npm run test:agent-token
+      - name: core/schema.sql matches the migrations
+        working-directory: hunt/crm
+        run: node scripts/schema.mjs --check
       - name: Sources registry
         working-directory: hunt
         run: node registry/scripts/test.mjs
