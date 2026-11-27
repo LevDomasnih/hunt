@@ -20,6 +20,7 @@ import { partyCron, feedbackCron } from './party';
 import { openDraft, unseal } from './vault';
 import { accessCron } from './access';
 import { setsCron } from './orders';
+import { updatesCron } from './updates';
 
 /** Wave 8.3: once a home is chosen, a thread about another home is the search archive: never "waiting for you" (same rule as
  * thArchived in public/app.js). The home = searches.home_listing_id or a listing taken; house contacts always stay with the home. */
@@ -611,7 +612,8 @@ export async function runCron(env: Env): Promise<void> {
   // The outbox and the sets' reminders first (time-sensitive; one query when nothing is due), then the rest starting at a
   // different job every tick, so a busy job never starves the others.
   const shift = Math.floor(Date.now() / 900e3) % jobs.length;
-  const order = [['outbox', flushOutbox] as const, ['sets', setsCron] as const, ...jobs.slice(shift), ...jobs.slice(0, shift)];
+  // The daily version check goes last: it waits on GitHub and must never hold back a reminder.
+  const order = [['outbox', flushOutbox] as const, ['sets', setsCron] as const, ...jobs.slice(shift), ...jobs.slice(0, shift), ['updates', updatesCron] as const];
   for (const [name, f] of order) {
     try { await f(cronEnv); } catch (e) {
       if (e instanceof BudgetOut) { console.log('cron budget used up at', name, '- the next tick continues'); return; }

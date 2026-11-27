@@ -1,0 +1,19 @@
+# Hunt on an ordinary server from the published image (crm/README.md, "Your own server without Cloudflare").
+#   docker compose up -d                              start (hunt.env next to this file: the same values as the Worker's secrets)
+#   docker compose pull && docker compose up -d       update; the database is copied to backups/ before new migrations
+#   HUNT_VERSION=0.2.0 docker compose up -d           go back to a version (the migrations only add)
+# The volume is the one `docker run -v hunt-db:/app/data` made, so moving to compose keeps the data.
+services:
+  hunt:
+    image: ghcr.io/levdomasnih/hunt:${HUNT_VERSION:-latest}
+    # build: .   # instead of the image: build from this checkout (node scripts/copy-art.mjs --no-demo first)
+    restart: unless-stopped
+    ports:
+      - "8787:8787"
+    env_file: hunt.env
+    volumes:
+      - hunt-db:/app/data
+
+volumes:
+  hunt-db:
+    name: hunt-db

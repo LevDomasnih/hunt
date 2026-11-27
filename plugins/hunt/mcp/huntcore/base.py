@@ -1,5 +1,7 @@
 """Hunt core: base (split from hunt_core.py)."""
 from __future__ import annotations
+import functools
+import json
 import logging
 import os
 import re
@@ -25,6 +27,22 @@ KEYRING_SERVICE = "hunt"
 logging.getLogger("httpx").setLevel(logging.WARNING)  # no per-request INFO lines in MCP logs
 USER_AGENT = "hunt-mcp/0.1"
 _CLIENTS = ("claude-code", "codex")
+_PLUGIN_DIR = Path(__file__).resolve().parents[2]  # huntcore/ -> mcp/ -> the plugin
+_SEMVER = re.compile(r"^\d+\.\d+\.\d+$")
+
+
+@functools.lru_cache(maxsize=1)
+def plugin_version() -> str | None:
+    """x.y.z from this plugin's own manifest (Claude Code's, else Codex's; one version for both), None when unreadable.
+    Sent as X-Hunt-Version: the server stores it and refuses a plugin older than it serves (426 plugin_outdated)."""
+    for manifest in (".claude-plugin", ".codex-plugin"):
+        try:
+            v = str(json.loads((_PLUGIN_DIR / manifest / "plugin.json").read_text(encoding="utf-8")).get("version") or "")
+        except (OSError, ValueError, AttributeError):
+            continue
+        if _SEMVER.match(v):
+            return v
+    return None
 
 
 def client_name(argv: list[str] | None = None) -> str:
@@ -41,8 +59,10 @@ def client_name(argv: list[str] | None = None) -> str:
 
 
 def _crm_headers(token: str = "", **extra: str) -> dict[str, str]:
-    """Headers of every call to the CRM: the user agent, which client we are, the token when there is one."""
+    """Headers of every call to the CRM: the user agent, which client and plugin version we are, the token when there is one."""
     h = {"User-Agent": USER_AGENT, "X-Hunt-Client": client_name(), **extra}
+    if v := plugin_version():
+        h["X-Hunt-Version"] = v
     if token:
         h["Authorization"] = f"Bearer {token}"
     return h
@@ -132,6 +152,7 @@ _HINTS = {
     404: "Check the id: it may be wrong or belong to another search/user.",
     409: "Conflict: the id is already used elsewhere; pick another id.",
     413: "The request is too large (try fewer or smaller photos).",
+    426: "This plugin is older than the server serves: update it (skill hunt-onboarding, step 7), then start a new session.",
     429: "Rate limited by Cloudflare; wait a minute and retry.",
 }
 

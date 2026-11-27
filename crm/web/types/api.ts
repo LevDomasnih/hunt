@@ -72,6 +72,7 @@ export interface State extends Open {
   counts: { new: number; drafts: number; replies_24h: number };
   agent_last_seen: string | null;
   agent_client: string | null;
+  agent_version: string | null;
   photo_token: string | null;
 }
 

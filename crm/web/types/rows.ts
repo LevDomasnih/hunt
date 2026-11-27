@@ -875,11 +875,18 @@ export interface SearchesRow {
   home_listing_id: string | null;
   closed_at: string | null;
   agent_client: string | null;
+  agent_version: string | null;
 }
 
 export interface SentMarksRow {
   key: string;
   at: string;
+}
+
+export interface ServerStateRow {
+  key: string;
+  value: string;
+  updated_at: string;
 }
 
 export interface SettlementsRow {

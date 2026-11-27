@@ -15,7 +15,7 @@ The same plugin works in OpenAI Codex (checked with Codex CLI 0.145). Codex read
    Or in the TUI: `codex` → `/plugins` → Hunt → Install.
 3. Open the invite link, press Start in the bot, then start a new Codex session and write `$hunt:new Tbilisi`, paste the address and token from the bot when asked.
 
-Update: `codex plugin marketplace upgrade hunt`, then a new session.
+Update: `$hunt:update` (the plugin, the countries and your own server), or by hand `codex plugin marketplace upgrade hunt`, then a new session. Every release raises `version` in the manifests, so Codex sees it.
 
 ## Commands are skills
 
@@ -31,6 +31,7 @@ Codex has no slash commands. Each Claude Code command has a Codex skill with the
 | `/hunt:region <place>` | `$hunt:region <place>` |
 | `/hunt:share <country>` | `$hunt:share <country>` |
 | `/hunt:schedule`, `/hunt:close` | `$hunt:schedule`, `$hunt:close` |
+| `/hunt:update` | `$hunt:update` |
 
 Plain words work too ("что нового в поиске"): the main skill `hunt:hunt` picks them up.
 

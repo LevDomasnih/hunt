@@ -9,13 +9,14 @@ import { rateLimit } from './media';
 import { withStage } from './stage';
 import { handlePartyPage } from './party';
 import { handleImgProxy, handleEventPage } from './imgproxy';
+import { health } from './updates';
 
 export default {
   async fetch(req: Request, env: Env): Promise<Response> {
     const url = new URL(req.url);
     const path = url.pathname;
     try {
-      if (path === '/' || path === '/health') return json({ ok: true, service: 'hunt-crm' });
+      if (path === '/' || path === '/health') return json(health());
       if (path === '/tg/webhook' && req.method === 'POST') return await handleWebhook(req, env);
       // Wave 6: writes that can move the project stage recompute it afterwards (withStage).
       if (path.startsWith('/app')) return await withStage(req, env, path, () => handleApp(req, env, path));

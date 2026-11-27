@@ -25,6 +25,7 @@ class MemoryKeyring:
 def isolated(tmp_path, monkeypatch):
     monkeypatch.setenv("HUNT_CONFIG_DIR", str(tmp_path / "cfg"))
     monkeypatch.setenv("HUNT_REGIONS", str(FIXTURES / "regions"))
+    monkeypatch.setenv("HUNT_UPDATE_CHECK", "0")  # no GitHub, no git ls-remote (huntcore/updates.py); test_updates turns it on with fakes
     for k in ("HUNT_API_URL", "HUNT_TOKEN", "CLAUDE_PLUGIN_ROOT"):
         monkeypatch.delenv(k, raising=False)
     kr = MemoryKeyring()

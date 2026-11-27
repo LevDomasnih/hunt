@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 from typing import Any
 from huntcore.base import ToolError
-from huntcore import base as _base, packs as _packs
+from huntcore import base as _base, packs as _packs, updates as _updates
 # ---------------------------------------------------------------- setup
 
 @_base.mcp.tool()
@@ -43,10 +43,19 @@ async def hunt_config_set(api_url: str, token: str, verify: bool = True) -> dict
     return out
 
 
+async def _with_updates(out: dict[str, Any]) -> dict[str, Any]:
+    try:
+        out["updates"] = await _updates.summary(out.get("health"), _packs.packs_source())
+    except Exception as e:  # the update check never breaks the status
+        out["updates"] = {"error": type(e).__name__}
+    return out
+
+
 @_base.mcp.tool()
 async def hunt_status() -> dict:
     """Check the Hunt setup: config, token presence, CRM /health and /api/me (who the token belongs to,
-    whether a profile exists), and where region packs are read from. Call this first in a session."""
+    whether a profile exists), where region packs are read from, and what is behind (updates: this plugin, the server, the
+    countries; checked at most once a day). Call this first in a session."""
     out: dict[str, Any] = {"config_file": str(_base.config_path()), "regions_root": str(_packs.regions_root())}
     cfg = _base.load_config()
     url = os.environ.get("HUNT_API_URL") or cfg.get("api_url")
@@ -54,7 +63,7 @@ async def hunt_status() -> dict:
     if not url:
         out["ready"] = False
         out["next"] = "Ask the user for the CRM URL and agent token, then call hunt_config_set."
-        return out
+        return await _with_updates(out)
     try:
         out["health"] = await _base.api("GET", "/health", auth=False)
     except ToolError as e:
@@ -69,4 +78,4 @@ async def hunt_status() -> dict:
     except ToolError as e:
         out["ready"] = False
         out["error"] = str(e)
-    return out
+    return await _with_updates(out)

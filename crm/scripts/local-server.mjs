@@ -17,7 +17,7 @@ const sleep = (ms) => new Promise((f) => setTimeout(f, ms));
 export function localServer({ name, port, inspector, vars = {} }) {
   const dir = mkdtempSync(join(tmpdir(), `hunt-${name}-`));
   const BASE = `http://127.0.0.1:${port}`;
-  const env = { TG_BOT_TOKEN: '000:fake', TG_WEBHOOK_SECRET: 'hook', SETUP_KEY: 's', LINK_SECRET: 'l', PUBLIC_URL: BASE, BOT_USERNAME: 'test_bot', ...vars };
+  const env = { TG_BOT_TOKEN: '000:fake', TG_WEBHOOK_SECRET: 'hook', SETUP_KEY: 's', LINK_SECRET: 'l', PUBLIC_URL: BASE, BOT_USERNAME: 'test_bot', UPDATE_CHECK: '0', ...vars };
   let proc = null, log = '';
   let dbFile, kvFile;
 

@@ -62,6 +62,17 @@ try {
   await agent('/api/searches', tok, 'evil<script>');
   ok(rows("SELECT agent_client FROM searches WHERE id='s_a'")[0].agent_client === 'claude-code', 'a missing or unknown header keeps it');
 
+  // ---- versions (src/updates.ts)
+  const h = (await get('/health')).j;
+  ok(h.ok && /^\d+\.\d+\.\d+$/.test(h.version) && Number.isInteger(h.api) && /^\d+\.\d+\.\d+$/.test(h.min_plugin), '/health says the version, the API and the oldest plugin', h);
+  const withVersion = async (v) => { const r = await fetch(BASE + '/api/searches', { headers: { authorization: `Bearer ${tok}`, 'x-hunt-client': 'claude-code', 'x-hunt-version': v } }); return { status: r.status, j: await r.json().catch(() => null) }; };
+  const old = await withVersion('0.0.1');
+  ok(old.status === 426 && old.j?.error === 'plugin_outdated' && /plugin update hunt@hunt/.test(old.j?.message ?? ''), 'a plugin older than min_plugin gets one clear error', old);
+  ok((await withVersion(h.version)).status === 200 && (await get('/app/api/state?s=s_a', A)).j.agent_version === h.version, 'X-Hunt-Version is stored and shown to the app');
+  await agent('/api/searches', tok, 'claude-code');
+  await withVersion('not-a-version');
+  ok(rows("SELECT agent_version FROM searches WHERE id='s_a'")[0].agent_version === h.version, 'a missing or bad version keeps the stored one');
+
   // ---- rate limit (6 an hour)
   let last = 0;
   for (let i = 0; i < 6; i++) last = (await issue()).status;

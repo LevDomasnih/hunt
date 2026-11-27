@@ -43,6 +43,8 @@ You need a Cloudflare account (free) and Node 22.5+.
 
 The same server runs on any machine with Node 22.5+ or Docker: SQLite in one file instead of D1 and KV, `public/` served from disk, the 15-minute cron inside the process, migrations applied at start (`node/server.mjs`). Cloudflare stays the other way to run it; nothing in `src/` changes.
 
+The ready image with the countries inside: put `hunt.env` next to [docker-compose.yml](docker-compose.yml) and run `docker compose up -d`. Or build it yourself:
+
 ```bash
 git clone https://github.com/LevDomasnih/hunt-data ../../hunt-data
 node scripts/copy-art.mjs --no-demo
@@ -61,8 +63,26 @@ Without Docker: `npm ci && node scripts/copy-art.mjs --no-demo && npm run build:
 | `TRUST_PROXY` | off | `1` behind nginx, Caddy or a tunnel: the client address comes from `X-Forwarded-For` (rate limits are per address) |
 | `NO_FREE_TIER_LIMITS` | `1` | `0` keeps Cloudflare's free-tier caps (1,000 photo writes a day, a small budget per cron tick) |
 | `HUNT_CRON` | on | `0` turns the in-process cron off (when something else calls it) |
+| `HUNT_BACKUPS` | `backups/` next to `HUNT_DB` | where the copy of the database goes before new migrations |
+| `HUNT_BACKUP_KEEP` | `3` | how many copies stay |
 
 Telegram needs HTTPS: put the server behind a reverse proxy with a certificate (Caddy does it by itself) and set `PUBLIC_URL` to that address, then call `/setup` as in step 6. The integration tests run against this server too: `HUNT_TEST_SERVER=node npm run test:households`.
+
+## Update
+
+The plugin and the server share one version; [CHANGELOG.md](../CHANGELOG.md) says what changed, `GET /health` says which version a server runs. Once a day the server reads the version on GitHub (only the public manifest, no data of yours; `UPDATE_CHECK=0` turns it off, `UPDATE_REPO=<owner>/<name>` for a fork) and the bot tells the admins once per new version, with the command for this kind of install. Your agent does it with `/hunt:update`; by hand it is one command per kind of install:
+
+| Install | Update | Way back |
+|---|---|---|
+| Docker (`docker-compose.yml`, image `ghcr.io/levdomasnih/hunt`) | `docker compose pull && docker compose up -d` | `HUNT_VERSION=0.2.0 docker compose up -d` |
+| Cloudflare | `npm run update` in `crm/` (`-- --config <file>` for your own wrangler config) | `npx wrangler rollback`; the database: the `time-travel restore` line the update printed |
+| Node without Docker | `npm run update:node` in `crm/`, then restart | `git checkout v0.2.0`, build as above, restart |
+
+`npm run update` pulls hunt and hunt-data (fast-forward only, it stops on uncommitted changes), installs, saves a D1 Time Travel bookmark, applies the migrations, deploys and prints the way back. On Node and Docker the server copies the database to `backups/` next to it (inside the volume) before new migrations, the newest three stay (`HUNT_BACKUPS`, `HUNT_BACKUP_KEEP`).
+
+Migrations only add (`node scripts/migrations-check.mjs` in CI), so an older server runs on a newer database: going back to the previous version never needs the database restored, unless a migration broke data. Moving from `docker run` to compose keeps the data: `docker-compose.yml` uses the same `hunt-db` volume.
+
+A release: write the changes under "Unreleased" in `CHANGELOG.md`, `node scripts/release.mjs 0.3.0` (`--min-plugin 0.3.0` when older plugins can no longer talk to the server), merge into main. The release workflow tags `v0.3.0`, publishes the GitHub release and the Docker image; Claude Code and Codex hand out the plugin by the new manifest version.
 
 ## Inviting people
 

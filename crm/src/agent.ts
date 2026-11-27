@@ -1,4 +1,5 @@
 import { Env, HttpError, json, body, now, rid, sha256hex, inflate, LISTING_JSON, event, parseJson, sensitive, httpUrl, redactSensitive, guardBody } from './util';
+import { pluginVersion, requirePlugin } from './updates';
 import { publishListing, postDayPlan, notify } from './bot';
 import { draftToOwner, notifyIncoming } from './notify';
 import { routeLink } from './cards';
@@ -114,7 +115,7 @@ export function cleanShortName(v: unknown): string | null {
  * Wave 8.1: any authenticated agent call (reads too) counts as the agent being around: agent_seen_at of the caller's own
  * searches moves forward at most once per 10 minutes (an in-isolate throttle plus the same condition in SQL).
  * "Подключить агента": the plugin says which client it runs in (X-Hunt-Client: claude-code | codex); a new client is
- * stored at once, an unknown or missing header (an older plugin) keeps what was there.
+ * stored at once, an unknown or missing header (an older plugin) keeps what was there. X-Hunt-Version (updates.ts) likewise.
  */
 const SEEN_MS = 10 * 60e3;
 const seenAt = new Map<string, number>();
@@ -123,16 +124,17 @@ export const agentClient = (req: Request): string | null => {
   const v = (req.headers.get('x-hunt-client') ?? '').trim().toLowerCase();
   return CLIENTS.has(v) ? v : null;
 };
-export async function seenAgent(env: Env, uid: string, client: string | null = null) {
-  const t = Date.now(), key = `${uid}|${client ?? ''}`;
+export async function seenAgent(env: Env, uid: string, client: string | null = null, version: string | null = null) {
+  const t = Date.now(), key = `${uid}|${client ?? ''}|${version ?? ''}`;
   if ((seenAt.get(key) ?? 0) > t - SEEN_MS) return;
   seenAt.set(key, t);
   if (seenAt.size > 500) seenAt.clear();
   const at = new Date(t).toISOString(), since = new Date(t - SEEN_MS).toISOString();
   const mine = `id IN (SELECT search_id FROM members WHERE user_id=?2 AND role='owner')`;
   if (client) {
-    await env.DB.prepare(`UPDATE searches SET agent_seen_at=?1, agent_client=?4 WHERE ${mine}
-      AND (agent_seen_at IS NULL OR agent_seen_at < ?3 OR agent_client IS NOT ?4)`).bind(at, uid, since, client).run();
+    // The version comes with the client (plugins from 0.2.0 send both); a missing version keeps the stored one.
+    await env.DB.prepare(`UPDATE searches SET agent_seen_at=?1, agent_client=?4, agent_version=COALESCE(?5, agent_version) WHERE ${mine}
+      AND (agent_seen_at IS NULL OR agent_seen_at < ?3 OR agent_client IS NOT ?4 OR (?5 IS NOT NULL AND agent_version IS NOT ?5))`).bind(at, uid, since, client, version).run();
   } else {
     await env.DB.prepare(`UPDATE searches SET agent_seen_at=?1 WHERE ${mine} AND (agent_seen_at IS NULL OR agent_seen_at < ?3)`).bind(at, uid, since).run();
   }
@@ -158,7 +160,9 @@ const enc = (v: unknown) => (v != null && typeof v === 'object' ? JSON.stringify
 
 export async function handleAgent(req: Request, env: Env, path: string): Promise<Response> {
   const ctx = await authAgent(req, env);
-  await seenAgent(env, ctx.user.id, agentClient(req));
+  const version = pluginVersion(req);
+  requirePlugin(version); // a plugin older than this server serves: one clear error, nothing half-done
+  await seenAgent(env, ctx.user.id, agentClient(req), version);
   const m = req.method;
   const p = path.split('/').filter(Boolean); // ['api', ...]
   const DB = env.DB;

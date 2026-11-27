@@ -94,6 +94,9 @@ The app finds `hunt-data` next to `hunt` by itself; `HUNT_REGIONS=<path>/regions
 | `/hunt:region <place>` | prepare a country or a city nobody has made yet |
 | `/hunt:share <country>` | offer it to everyone |
 | `/hunt:schedule`, `/hunt:close` | run by itself; finish politely |
+| `/hunt:update` | update the plugin, the countries and your own server |
+
+**Updates.** One version for everything ([CHANGELOG.md](CHANGELOG.md)). Your agent says once a day when something is behind; `/hunt:update` updates each part with your yes. By hand, the plugin: `claude plugin marketplace update hunt && claude plugin update hunt@hunt` (or turn on auto-update in `/plugin` → Marketplaces), in Codex `codex plugin marketplace upgrade hunt`, then a new session. The countries: ask your agent to update them (`packs_update`). Your own server: [crm/README.md](crm/README.md#update); it tells its admins in the bot when a new version is out.
 
 ## Every place has its own face
 
