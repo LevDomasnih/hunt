@@ -23,7 +23,9 @@ const TRUST_PROXY = E.TRUST_PROXY === '1'; // behind nginx / Caddy / a tunnel th
 mkdirSync(dirname(DB_FILE), { recursive: true });
 const d1 = new NodeD1(DB_FILE);
 const sql = d1.db;
-try { for (const f of migrate(sql, MIGRATIONS)) console.log('migration', f); } catch (e) { console.error(e.message); process.exit(1); }
+// Before new migrations the database is copied to HUNT_BACKUPS (default: backups/ next to it, inside the Docker volume).
+const BACKUPS = resolve(E.HUNT_BACKUPS || join(dirname(DB_FILE), 'backups'));
+try { for (const f of migrate(sql, MIGRATIONS, { backupDir: BACKUPS, keep: Number(E.HUNT_BACKUP_KEEP || 3) })) console.log('migration', f); } catch (e) { console.error(e.message); process.exit(1); }
 const kv = new NodeKV(sql);
 
 // ---- static files: like Workers Static Assets with html_handling = none (exact paths only, ETag, revalidate)
@@ -56,8 +58,9 @@ const ASSETS = {
 
 // ---- the Worker's environment
 const KEYS = ['TG_BOT_TOKEN', 'TG_WEBHOOK_SECRET', 'SETUP_KEY', 'LINK_SECRET', 'PUBLIC_URL', 'BOT_USERNAME', 'SOURCES_URL', 'SOURCES_KEY', 'SOURCES_ADMIN_KEY',
-  'OPEN_SIGNUP', 'CHAT_KEK', 'AI_ON', 'NO_FREE_TIER_LIMITS', 'TG_API'];
-const env = { DB: d1, PHOTOS_KV: kv, ASSETS, NO_FREE_TIER_LIMITS: '1' };
+  'OPEN_SIGNUP', 'CHAT_KEK', 'AI_ON', 'NO_FREE_TIER_LIMITS', 'TG_API', 'UPDATE_CHECK', 'UPDATE_REPO'];
+// HUNT_RUNTIME picks the update command the bot suggests to the admins (src/updates.ts).
+const env = { DB: d1, PHOTOS_KV: kv, ASSETS, NO_FREE_TIER_LIMITS: '1', HUNT_RUNTIME: existsSync('/.dockerenv') || E.HUNT_DOCKER === '1' ? 'docker' : 'node' };
 for (const k of KEYS) if (E[k] != null && E[k] !== '') env[k] = E[k];
 for (const k of ['TG_BOT_TOKEN', 'TG_WEBHOOK_SECRET', 'SETUP_KEY', 'LINK_SECRET', 'PUBLIC_URL', 'BOT_USERNAME']) if (!env[k]) console.warn(`warning: ${k} is not set`);
 const BASE = env.PUBLIC_URL ? new URL(env.PUBLIC_URL).origin : `http://localhost:${PORT}`;

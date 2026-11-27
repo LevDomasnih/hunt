@@ -71,7 +71,9 @@ cd hunt/crm && npm ci && npm run dev
 
 **Свой сервер.** Минут десять на бесплатном Cloudflare или Docker на любой машине (внутри SQLite, без Cloudflare): [crm/README.md](crm/README.md).
 
-Команды: `/hunt:new` новый поиск, `/hunt:connect` каналы, `/hunt:sweep` собрать дома, `/hunt:tick` что нового, `/hunt:deal` договор и заезд, `/hunt:region` новая страна или город, `/hunt:share` поделиться, `/hunt:schedule` по расписанию, `/hunt:close` красиво закончить.
+Команды: `/hunt:new` новый поиск, `/hunt:connect` каналы, `/hunt:sweep` собрать дома, `/hunt:tick` что нового, `/hunt:deal` договор и заезд, `/hunt:region` новая страна или город, `/hunt:share` поделиться, `/hunt:schedule` по расписанию, `/hunt:close` красиво закончить, `/hunt:update` обновиться.
+
+**Обновления.** Одна версия на всё ([CHANGELOG.md](CHANGELOG.md)). Агент раз в день говорит, если что-то отстало; `/hunt:update` обновляет каждую часть с твоего «да». Руками, плагин: `claude plugin marketplace update hunt && claude plugin update hunt@hunt` (или включи автообновление в `/plugin` → Marketplaces), в Codex `codex plugin marketplace upgrade hunt`, потом новая сессия. Страны: попроси агента обновить их (`packs_update`). Свой сервер: [crm/README.md](crm/README.md#update); когда выходит новая версия, он пишет своим админам в боте.
 
 ## У каждого места своё лицо
 

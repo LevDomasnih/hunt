@@ -13,6 +13,8 @@
     "predeploy": "node scripts/copy-art.mjs --no-demo && node scripts/build-web.mjs",
     "deploy": "wrangler deploy",
     "migrate": "wrangler d1 migrations apply hunt --remote",
+    "update": "node scripts/update.mjs",
+    "update:node": "node scripts/update.mjs --node",
     "typecheck": "tsc --noEmit && tsc --noEmit -p web && node scripts/typecheck-web.mjs && node scripts/web-rows.mjs --check",
     "test:households": "node scripts/test-households.mjs",
     "test:roles": "node scripts/test-roles-money.mjs",

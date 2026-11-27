@@ -7,7 +7,7 @@ fetches Python and the dependencies into its cache on first start.
 
 | Server | File | What it does |
 |---|---|---|
-| `hunt` | `hunt_core.py` + `huntcore/` | Hunt CRM API (Cloudflare Worker), region packs, time/date/route helpers, event photo quality gate (Pillow). `hunt_core.py` is the entry (uv script header, `mcp.run()`); the code lives in `huntcore/<area>.py` (base, searches, listings, messages, deals, money, house, home, places, packs, registry, routes, location, flood, items, living, stage, useful, events, parties, orders, event_photos, event_sources, portals). Importing an area module registers its tools on the one app (`huntcore.base.mcp`). A module reads another's names as `_area.name`, so a test patches a name in the module that defines it: `monkeypatch.setattr(huntcore.places, "_VALHALLA_MIN_INTERVAL", 0)` |
+| `hunt` | `hunt_core.py` + `huntcore/` | Hunt CRM API (Cloudflare Worker), region packs, time/date/route helpers, event photo quality gate (Pillow). `hunt_core.py` is the entry (uv script header, `mcp.run()`); the code lives in `huntcore/<area>.py` (base, searches, listings, messages, deals, money, house, home, places, packs, registry, routes, location, flood, items, living, stage, useful, events, parties, orders, event_photos, event_sources, portals, updates). Importing an area module registers its tools on the one app (`huntcore.base.mcp`). A module reads another's names as `_area.name`, so a test patches a name in the module that defines it: `monkeypatch.setattr(huntcore.places, "_VALHALLA_MIN_INTERVAL", 0)` |
 | `hunt-telegram` | `hunt_telegram.py` + `hunttg/` | Telegram user account over Telethon (modules: base, keychain, clients, errors, entities, pacing, folders, login_page, setup, reading, sending): login by QR, inbox, history, media, guarded sending, folders |
 | `hunt-browser` | `hunt_browser.py` + `huntbrowser/` | WhatsApp Web (QR), Messenger and Instagram DMs (modules: chromium, session, js, pacing, whatsapp, messenger, instagram, login, and the tools per channel) in dedicated headless Chromium profiles: inbox, history, media, verified sending, pacing. See `../channels/headless.md`. Tests: `uv run --with pytest --with playwright==1.60.0 --with mcp --with keyring pytest mcp/tests/test_browser_local.py` |
 | `hunt-bridge` | `hunt_bridge.py` | any other channel through a small local HTTP service (Signal, a local portal): see `../channels/BRIDGE.md` |
@@ -45,7 +45,7 @@ Each entry file only has the uv header and imports its package; importing a modu
 
 Environment overrides: `HUNT_CONFIG_DIR` (config folder), `HUNT_API_URL` + `HUNT_TOKEN` (headless
 machines without a keychain; the token is then read from the environment), `HUNT_REGIONS`,
-`CLAUDE_PLUGIN_ROOT`.
+`CLAUDE_PLUGIN_ROOT`. `HUNT_UPDATE_CHECK=0`: `hunt_status` does not look for a newer plugin or newer countries (once a day otherwise; the tests set it). Every CRM call sends `X-Hunt-Version` from the plugin manifest.
 
 Telegram settings (`tg_settings`, global or per account):
 

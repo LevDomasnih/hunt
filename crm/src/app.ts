@@ -138,7 +138,7 @@ const VOTERS: Role[] = ['owner', 'member'];
 /** Searches the user may open in the Mini App (a scoped link narrows them to its one search). */
 async function searchRowsOf(env: Env, user: AppUser) {
   const rows = (await env.DB.prepare(
-    `SELECT s.id, s.title, s.region, s.status, s.brief, s.owner_id, s.created_at, s.money_mode, s.rooms, s.dir_groups, s.agent_seen_at, s.agent_client, s.stage, s.stage_manual, s.stage_changed_at, s.home_listing_id, s.closed_at, o.display_name owner_name, m.role
+    `SELECT s.id, s.title, s.region, s.status, s.brief, s.owner_id, s.created_at, s.money_mode, s.rooms, s.dir_groups, s.agent_seen_at, s.agent_client, s.agent_version, s.stage, s.stage_manual, s.stage_changed_at, s.home_listing_id, s.closed_at, o.display_name owner_name, m.role
      FROM searches s JOIN members m ON m.search_id=s.id AND m.user_id=?1 JOIN users o ON o.id=s.owner_id
      ORDER BY s.status='closed', s.updated_at DESC`,
   ).bind(user.id).all<any>()).results ?? [];
@@ -366,6 +366,7 @@ async function state(req: Request, env: Env, user: AppUser): Promise<Response> {
     counts: { new: summary.counts.new, drafts: summary.counts.drafts, replies_24h: full ? Number(rep.results?.[0]?.n ?? 0) : 0 },
     agent_last_seen: rawSearch?.agent_seen_at ?? null,
     agent_client: rawSearch?.agent_client ?? null, // claude-code | codex (X-Hunt-Client of the owner's plugin)
+    agent_version: rawSearch?.agent_version ?? null, // x.y.z of the owner's plugin (X-Hunt-Version), null before 0.2.0
     photo_token,
   });
 }

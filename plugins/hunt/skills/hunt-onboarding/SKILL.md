@@ -1,6 +1,6 @@
 ---
 name: hunt-onboarding
-description: First-time Hunt setup and starting a new search — connect to a Hunt CRM (shared instance via invite link, or deploy your own on Cloudflare free tier), fill the hunter profile (how to introduce you, phone, email, languages, phone policy, tone, autonomy, quiet hours), connect channels (separate "hunting number" for Telegram/WhatsApp recommended, or a Hunt folder in the personal account), run the search brief with region-specific questions, create the Telegram group for friends and schedule regular runs. Use on "set up hunt", "/hunt new", "start a new search", "connect telegram/whatsapp", or when hunt tools report missing config.
+description: First-time Hunt setup and starting a new search — connect to a Hunt CRM (shared instance via invite link, or deploy your own on Cloudflare free tier), fill the hunter profile (how to introduce you, phone, email, languages, phone policy, tone, autonomy, quiet hours), connect channels (separate "hunting number" for Telegram/WhatsApp recommended, or a Hunt folder in the personal account), run the search brief with region-specific questions, create the Telegram group for friends, schedule regular runs and update the plugin, the countries or your own server (step 7). Use on "set up hunt", "/hunt new", "start a new search", "connect telegram/whatsapp", "update hunt" / "обнови Hunt", when hunt tools report missing config or 426 plugin_outdated.
 ---
 
 # Onboarding
@@ -52,3 +52,19 @@ When the members chose "new" in the "what next" vote (`next_new`), don't start f
 ## 6. Rhythm
 
 Offer to schedule a run every 30 minutes during the day (Claude Code: a scheduled task or `/loop`; Codex: an automation in the Codex app, or cron/launchd running `codex exec` with the tick request) that does the tick from skill `hunt`. Explain: the computer must be on; approvals and votes work from the phone at any time.
+
+## 7. Updating Hunt
+
+On `/hunt:update`, "обнови Hunt", a tool error `426 plugin_outdated`, `hunt_status` → `updates.next`, or when the bot told an admin that a new version is out. The plugin and the server share one version; what changed is in `CHANGELOG.md` of the repository. Each step that changes something needs the hunter's yes; say the versions before and after.
+
+1. **What is behind.** `hunt_status` → `updates`: `plugin` (installed / latest on GitHub), `server` (`version`, `min_plugin`), `packs` (installed / latest commit), checked at most once a day. `packs_update(check=True)` checks the countries again without downloading. Show one short list.
+2. **Plugin.** Claude Code: `claude plugin marketplace update hunt`, then `claude plugin update hunt@hunt`. Codex: `codex plugin marketplace upgrade hunt`. The new tools load after `/reload-plugins` or in a new session: say so and call nothing new before that. Offer once to turn on auto-update (Claude Code: `/plugin` → Marketplaces → hunt → auto-update), then this step is never needed. A marketplace added from a local folder is a development checkout: `git pull` there instead.
+3. **Countries.** `packs_update()`; report `countries`, `version` and `previous_version`, and if present `your_changes_kept` and `changed_in_both` (the hunter's copies are kept aside). Something looks wrong after it: `packs_update(rollback=True)` puts the previous copy back (call it again to return).
+4. **Own server**, only when the hunter runs it (an admin of their own server). A shared server is its owner's job: say the version and stop. Ask once how it runs:
+   - Docker with `docker-compose.yml` (the published image): in that folder `docker compose pull && docker compose up -d`, then `docker compose logs --tail 30 hunt` (expect "database copied before migrations" and the migration names). Way back: `HUNT_VERSION=<previous> docker compose up -d`.
+   - Docker built from a checkout (`docker run … hunt`): offer to move to `crm/docker-compose.yml` (it uses the same `hunt-db` volume, the data stays). Or rebuild: `git pull --ff-only` in hunt and hunt-data, `node scripts/copy-art.mjs --no-demo`, `docker build -t hunt .`, `docker rm -f hunt`, the same `docker run` as before.
+   - Cloudflare: in `<hunt>/crm` run `npm run update` (`npm run update -- --config <file>` with their own wrangler config). It stops on uncommitted changes, saves a D1 Time Travel bookmark, applies the migrations, deploys and prints the way back: show those lines to the hunter.
+   - Node without Docker: `npm run update:node` in `<hunt>/crm`, then restart the process; it copies the database to `backups/` before new migrations.
+   Then `hunt_status` again: `updates.server.version` is the new one.
+
+Never update while messages are being sent. Never discard, reset or merge the hunter's own changes in a checkout; a failed step stops the update, and you show the way back from the script's output.

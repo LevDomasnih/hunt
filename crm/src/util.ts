@@ -16,6 +16,9 @@ export interface Env {
   AI_ON?: string; // "1" = the server runs its own assistant: the money limit is shown
   TG_API?: string; // the Bot API host; unset = https://api.telegram.org (the integration tests point it at a fake)
   NO_FREE_TIER_LIMITS?: string; // "1" = not on Cloudflare's free tier (own server, node/server.mjs): no daily KV write cap, no per-tick cron budget
+  HUNT_RUNTIME?: string; // 'docker' | 'node' (set by node/server.mjs); unset = Cloudflare. Picks the update command (updates.ts)
+  UPDATE_CHECK?: string; // "0" = no daily check for a newer Hunt (updates.ts)
+  UPDATE_REPO?: string; // owner/name whose main branch is "the latest version" (default LevDomasnih/hunt; a fork sets its own)
 }
 
 export class HttpError extends Error {

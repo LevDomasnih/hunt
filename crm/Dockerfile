@@ -11,7 +11,7 @@ RUN node scripts/build-web.mjs && node scripts/build-node.mjs
 
 FROM node:22-slim
 WORKDIR /app
-ENV NODE_ENV=production PORT=8787 HUNT_DB=/app/data/hunt.db
+ENV NODE_ENV=production PORT=8787 HUNT_DB=/app/data/hunt.db HUNT_DOCKER=1
 COPY --from=build /src/dist ./dist
 COPY --from=build /src/public ./public
 COPY --from=build /src/migrations ./migrations

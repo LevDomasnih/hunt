@@ -59,6 +59,12 @@ jobs:
       - name: core/schema.sql matches the migrations
         working-directory: hunt/crm
         run: node scripts/schema.mjs --check
+      - name: Migrations only add
+        working-directory: hunt/crm
+        run: node scripts/migrations-check.mjs
+      - name: One version in the manifests, the server and the changelog
+        working-directory: hunt
+        run: node scripts/release.mjs --check
       - name: The Node server (site, agent token, roles and money on Node + SQLite)
         working-directory: hunt/crm
         env:
@@ -67,7 +73,7 @@ jobs:
       - name: Sources registry
         working-directory: hunt
         run: node registry/scripts/test.mjs
-      - name: Unit tests (orders, sets, parties, afisha ranking)
+      - name: Unit tests (orders, sets, parties, afisha ranking, updates)
         working-directory: hunt/crm
         run: for f in scripts/test-*-pure.mts scripts/test-*-rank.mts; do node --experimental-strip-types "$f"; done
       - name: Codex skills are fresh
