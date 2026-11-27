@@ -1,0 +1,17 @@
+name: A new city or a fix to one
+description: Your city is missing, or something in a pack is wrong or out of date.
+labels: [city]
+body:
+  - type: input
+    id: place
+    attributes:
+      label: Country and city
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What to add or fix
+      description: Rules with a source and the month you checked, districts, prices, scams, forums. No people, no private phone numbers, no listings. Faster still - /hunt:region and /hunt:share (see CONTRIBUTING.md).
+    validations:
+      required: true

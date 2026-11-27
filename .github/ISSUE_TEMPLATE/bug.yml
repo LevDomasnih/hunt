@@ -1,0 +1,23 @@
+name: Something is broken
+description: The app, the bot, the site or the agent did the wrong thing.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, what you got. Screenshots help; hide names, phones and addresses.
+    validations:
+      required: true
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where
+      options: [Mini App in Telegram, Site in a browser, Telegram bot, Agent in Claude Code, Agent in Codex, Own server (Cloudflare), Own server (Docker / Node)]
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Plugin version (`/plugin` in Claude Code) or the commit of your server.
