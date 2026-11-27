@@ -3,11 +3,19 @@
 // Imported by app.js; the names below are used only while rendering (a circular import).
 import { html } from 'htm/preact';
 import { useState, useEffect } from 'preact/hooks';
-import { S, D, LANG, api, emit, hap, toast, go, load, Icon, Typed, Sticker, money, copyText, openLink, inTG, t } from './app.js';
+import { api, load } from './app/core/api.js';
+import { D } from './app/core/data.js';
+import { inTG } from './app/core/env.js';
+import { money } from './app/core/format.js';
+import { LANG, t, L } from './app/core/i18n.js';
+import { go, openLink } from './app/core/routing.js';
+import { S, emit, hap, toast } from './app/core/store.js';
+import { copyText } from './app/home/helpers.js';
+import { Icon } from './app/ui/icons.js';
+import { Typed, Sticker } from './app/ui/pieces.js';
 import { useWide } from './desk.js';
 import { demoOn } from './demo.js';
 
-const L = (ru, en) => (LANG === 'en' ? en : ru);
 const NP: Bag = { step: 1, country: null, city: null, mode: 'search', areas: [], open: null, move_in: '', term: '6', beds: '2', cap: '', title: '', wish: '', done: null, busy: false };
 export const npTone = () => (NP.country && NP.step > 1 ? 'region' : 'grey');
 const nm = (o) => (o ? o[LANG] ?? o.en ?? o.ru ?? Object.values(o)[0] : '');

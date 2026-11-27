@@ -1,17 +1,30 @@
 // Hunt on a big screen (≥ 1024 px, design/desktop): the rail, the screens as columns on one colour, Hunt as a black device that
 // prints one ticket with the decision. Data, helpers and every secondary screen come from app.js (shown in a column), nothing is
 // cut from the phone version. app.js imports this file; the names below are used only while rendering (circular import).
+import type { Listing, Thread } from './types/api.js';
 import { html } from 'htm/preact';
 import { useState, useEffect, useRef, useMemo } from 'preact/hooks';
-import {
-  S, D, LANG, t, api, emit, toast, hap, go, sp, back, refresh, load, openSheet, openLink, pref, inTG, isDark, cssVar,
-  Icon, Av, BigWord, Typed, Sticker, FloatPhoto, WaterCard, CountUp, Good, Receipt, TkPhoto, Img,
-  money, scaled, bigMoney, dfmt, fmtTime, fmtDM, fmtDayMonth, wdShort, dayKey, cap, firstName, shortTitle, pl, skel, msgCard,
-  listingById, memberById, votesFor, myVote, vote, photosOf, photoUrl, districtShort, districtName, priceText, minutesFor, km, interestOf, canVoteRole, isNewForMe,
-  homeMode, homeListing, homePhase, homeStage, hmStay, hmDays, hmToday, hmName, useEventPlan, useSurf, surfBest, sfH, hm, briefMentionsSurf, nightMode,   sortedThreads, thArchived, chArchRoute, homeThreads, archThreads, archNew, homeRow, waitingUs, channelsOf, contactName, channelName,   useAfisha, AF, afTitle, afHM, afPlace, afPrice, afLang, afWhy, afTravel, afDay, afDayLong, afFeedback, afBook, afIcon, afArea,
-  useOrders, ordSup, ordShelf, ordBasket, ordSetQty, ordName, ordShort, ordPrice, ordBadge, ordRot, ordTab, ordCan, ordAgain, ordLast, ordMoney, ordFlushAll,
-  copyText, viewingsByDay, regionPack, subRegion, loadML, mapStyle, inviteFriends, docTitle, docSub, dealPaid, vStatus,
-} from './app.js';
+import { TkPhoto, useAfisha, AF, afTitle, afHM, afPlace, afPrice, afLang, afWhy, afTravel, afDay, afDayLong, afFeedback, afBook, afIcon, afArea } from './app/afisha/afisha.js';
+import { api, refresh, load, isDark, cssVar, vote } from './app/core/api.js';
+import { D, listingById, memberById, votesFor, myVote, photosOf, photoUrl, districtShort, districtName, priceText, minutesFor, interestOf, canVoteRole, isNewForMe, viewingsByDay, subRegion } from './app/core/data.js';
+import { pref, inTG } from './app/core/env.js';
+import { money, dfmt, fmtTime, fmtDM, fmtDayMonth, wdShort, dayKey, firstName, shortTitle, km, channelName } from './app/core/format.js';
+import { LANG, t, cap, pl, L } from './app/core/i18n.js';
+import { go, sp, back, openLink } from './app/core/routing.js';
+import { S, emit, toast, hap, openSheet } from './app/core/store.js';
+import { docTitle, docSub } from './app/home/docs.js';
+import { scaled, skel, msgCard, hm, copyText, regionPack } from './app/home/helpers.js';
+import { homeMode, homeListing, homePhase, homeStage, hmStay, hmDays, hmToday, hmName, useEventPlan } from './app/home/homemode.js';
+import { dealPaid } from './app/home/money.js';
+import { useSurf, surfBest, sfH, briefMentionsSurf } from './app/home/surf.js';
+import { Good, Receipt, useOrders, ordSup, ordShelf, ordBasket, ordSetQty, ordName, ordShort, ordPrice, ordBadge, ordRot, ordTab, ordCan, ordAgain, ordLast, ordMoney, ordFlushAll } from './app/orders/orders.js';
+import { sortedThreads, thArchived, chArchRoute, homeThreads, archThreads, archNew, homeRow, waitingUs, channelsOf, contactName } from './app/screens/chats.js';
+import { loadML, mapStyle } from './app/screens/map.js';
+import { vStatus } from './app/screens/plan.js';
+import { inviteFriends } from './app/screens/today.js';
+import { Icon, Av, Img } from './app/ui/icons.js';
+import { BigWord, Typed, Sticker, FloatPhoto, WaterCard, CountUp, bigMoney } from './app/ui/pieces.js';
+import { nightMode } from './app/home/homemode.js';
 import { demoOn, demoStart, demoStop } from './demo.js';
 import * as ax from './access.js';
 import { loadAccess, canAccess } from './access.js';
@@ -21,7 +34,6 @@ import { DeskAgent } from './agent.js'; // "Подключить агента" o
 const prc = (l) => (l?.price != null ? money(l.price, l.currency) : '');
 const num = (s) => String(s).match(/^[\d.,  ]+/)?.[0].trim() || String(s);
 const unit = (s) => String(s).slice(num(s).length).trim().replace(/^M$/, 'million').replace(/^k$/i, 'thousand');
-const L = (ru, en) => (LANG === 'en' ? en : ru);
 const WIDE = '(min-width: 1024px)';
 export const deskWide = () => matchMedia(WIDE).matches && !(inTG && /^(ios|android)/.test(window.Telegram?.WebApp?.platform ?? ''));
 export function useWide() {
@@ -339,16 +351,16 @@ function thGroups(q, arch?) {
   const dr0 = new Set((D().drafts ?? []).map((x) => x.contact_id));
   if (arch) {
     // the search archive: who wrote after the move, homes we turned down, homes that never answered
-    const a = [[L('Написали после заезда', 'Wrote after the move'), []], [L('Отказались', 'Turned down'), []], [ARCH_NO(), []]];
+    const a: [string, Thread[]][] = [[L('Написали после заезда', 'Wrote after the move'), []], [L('Отказались', 'Turned down'), []], [ARCH_NO(), []]];
     for (const th of archThreads().filter(has)) a[th.state === 'waiting_us' || dr0.has(th.contact_id) ? 0 : th.state === 'waiting_them' ? 2 : 1][1].push(th);
     return a.filter(([, x]) => x.length);
   }
   if (homeMode()) {
-    const h = [[L('Ждут тебя', 'Waiting for you'), []], [L('Дом', 'Home'), []]];
+    const h: [string, Thread[]][] = [[L('Ждут тебя', 'Waiting for you'), []], [L('Дом', 'Home'), []]];
     for (const th of homeThreads().filter(has)) h[th.state === 'waiting_us' || dr0.has(th.contact_id) ? 0 : 1][1].push(th);
     return h.filter(([, x]) => x.length);
   }
-  const list = sortedThreads().filter(has), g = [[L('Ждут тебя', 'Waiting for you'), []], [L('Торг', 'Bargaining'), []], [L('Ждём', 'We wait'), []], [L('Закрыто', 'Closed'), []]];
+  const list = sortedThreads().filter(has), g: [string, Thread[]][] = [[L('Ждут тебя', 'Waiting for you'), []], [L('Торг', 'Bargaining'), []], [L('Ждём', 'We wait'), []], [L('Закрыто', 'Closed'), []]];
   const dr = new Set((D().drafts ?? []).map((x) => x.contact_id));
   for (const th of list) {
     const l = listingById(th.listing_id);
@@ -410,7 +422,7 @@ function Thread({ th }) {
     sendLater('say' + c + Date.now(), asIs ? L(`Отправляю: ${firstName(contactName(th))}`, `Sending to ${firstName(contactName(th))}`) : L('Отдаю Ханту перевести', 'Hunt will translate'), () => api('/app/api/say', { search_id: d.search.id, contact_id: c, text, as_is: asIs }));
   };
   const asked = l?.price;
-  const wasAsked = owner ? d.deal?.asked?.price ?? null : null;
+  const wasAsked = owner ? d.deal?.asked ?? null : null; // deals.asked: the price first asked (a number)
   let lastDay = null;
   return html`<section class="dk-thread">
     <header class="dk-th-h">${hr && !hr.photo ? html`<span class="dk-role dk-role-lg"><${Icon} n=${hr.icon} /></span>` : html`<button class="frame sm" onClick=${() => l && go(sp('listing', l.id))} aria-label=${thHome(th)}><span class="in"><${Img} src=${photosOf(l)[0]} /></span></button>`}
@@ -452,10 +464,11 @@ function ChatsDevice({ desk, arg }) {
 
 // ---------------------------------------------------------------- Search
 let seg = null;
-const SEGS = () => {
+const SEGS = (): [string, string, Listing[]][] => {
   const d = D(), mine = new Set(d.votes.filter((v) => v.user_id === d.user.id).map((v) => v.listing_id));
   const alive = d.listings.filter((l) => !['rejected', 'taken', 'closed'].includes(l.status));
-  return [['want', L('Хотим', 'Want'), alive.filter((l) => ['want_view', 'take'].includes(l.decision))], ['think', L('Думаем', 'Thinking'), alive.filter((l) => l.decision === 'thinking')], ['new', L('Новые', 'New'), alive.filter((l) => isNewForMe(l, mine))], ['all', L('Все', 'All'), alive.filter((l) => l.decision !== 'not_interested')]].filter(([k, , x]) => x.length || k === 'all');
+  const all: [string, string, Listing[]][] = [['want', L('Хотим', 'Want'), alive.filter((l) => ['want_view', 'take'].includes(l.decision))], ['think', L('Думаем', 'Thinking'), alive.filter((l) => l.decision === 'thinking')], ['new', L('Новые', 'New'), alive.filter((l) => isNewForMe(l, mine))], ['all', L('Все', 'All'), alive.filter((l) => l.decision !== 'not_interested')]];
+  return all.filter(([k, , x]) => x.length || k === 'all');
 };
 function DeskSearch({ arg, desk }) {
   const d = D(), segs = SEGS();
@@ -662,7 +675,7 @@ function DeskMoney() {
   const tr = m.balances?.[cur]?.transfers ?? [], top = tr.find((x) => x.from === d.user.id || x.to === d.user.id) ?? tr[0];
   const can = canVoteRole(d.me.role) && !d.path?.closed;
   const [busy, setBusy] = useState(false);
-  const settle = async () => { setBusy(true); try { const r = await api('/app/api/settle', { search_id: d.search.id, from: top.from, to: top.to, amount: top.amount, currency: cur }); d.money = r.money; toast(t('settled_toast')); emit(); } catch { toast(t('err_generic')); } setBusy(false); };
+  const settle = async () => { setBusy(true); try { const r = await api('/app/api/settle', { search_id: d.search.id, from: top.from, to: top.to, amount: top.amount, currency: cur }); D().money = r.money; toast(t('settled_toast')); emit(); } catch { toast(t('err_generic')); } setBusy(false); };
   return html`<div class="dk-main dk-money">
     <header class="dk-fig"><div><p>${L('потратили в этом месяце', 'spent this month')}, ${bm.unit}</p><b class="dk-big"><${CountUp} value=${bm.v} fmt=${f(bm)} /></b></div>
       ${sum > 0 && dayN > 2 && dayN < daysIn && html`<div class="fc"><p>${L(`прогноз к ${daysIn}-му`, 'forecast')}</p><b class="dk-big blur">${f(bf)(bf.v)}</b></div>`}</header>

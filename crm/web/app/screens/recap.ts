@@ -1,4 +1,3 @@
-// Split from app.js (wave 11): see the section comment below.
 import { api, authHeaders, cssVar } from '../core/api.js';
 import { D, photoUrl } from '../core/data.js';
 import { inTG } from '../core/env.js';

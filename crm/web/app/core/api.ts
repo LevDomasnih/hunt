@@ -1,4 +1,5 @@
-// Split from app.js (wave 11): see the section comment below.
+// Talking to the server: api(), loading the state, votes, the theme and the region on <html>.
+import type { State } from '../../types/api.js';
 import { demoApi, demoOn } from '../../demo.js';
 import { groupDecision, votesFor } from './data.js';
 import { TG, inTG, pref, tg } from './env.js';
@@ -10,7 +11,8 @@ export const urlKey = new URLSearchParams(location.search).get('k');
 if (urlKey) tg(() => sessionStorage.setItem('hunt.k', urlKey));
 export const linkKey = urlKey || tg(() => sessionStorage.getItem('hunt.k'));
 export const authHeaders = () => (inTG ? { 'x-tg-init-data': TG.initData } : linkKey ? { 'x-hunt-link': linkKey } : {});
-export async function api(path, body?, method?) {
+/** One call to the app's API (or the demo's recorded answers); throws an Error with `code` and `status` when it fails. */
+export async function api<T = any>(path: string, body?: unknown, method?: string): Promise<T> {
   if (demoOn) { try { return await demoApi(path, body); } catch (e) { if (body) { S.demoHint = Date.now() + 1500; } throw e; } }
   const r = await fetch(path, {
     method: method ?? (body ? 'POST' : 'GET'),
@@ -27,15 +29,15 @@ export async function api(path, body?, method?) {
   }
   return d;
 }
-export function applyRegion(country) {
+export function applyRegion(country: string | null | undefined) {
   const has = !!S.regions?.[country];
   if (has) document.documentElement.dataset.region = country;
   else delete document.documentElement.dataset.region;
 }
-export const cssVar = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+export const cssVar = (n: string) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 /** Theme preference: 'light' (default), 'dark' or 'auto' (follows Telegram / the system). Stored per device. */
 export function themePref() { try { const v = localStorage.getItem('hunt.theme'); return v === 'dark' || v === 'auto' ? v : 'light'; } catch { return 'light'; } }
-export function setThemePref(v) { try { localStorage.setItem('hunt.theme', v); } catch {} applyTheme(); }
+export function setThemePref(v: string) { try { localStorage.setItem('hunt.theme', v); } catch {} applyTheme(); }
 export function applyTheme() {
   const pref = themePref();
   const sys = inTG && TG.colorScheme ? TG.colorScheme : (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
@@ -52,14 +54,14 @@ export const isDark = () => document.documentElement.dataset.theme === 'dark' ||
 
 export const startParam = tg(() => TG?.initDataUnsafe?.start_param) || null;
 export let loadSeq = 0;
-export async function load(sid, { quiet = false, listing = null } = {}) {
+export async function load(sid: string | null, { quiet = false, listing = null }: { quiet?: boolean; listing?: string | null } = {}) {
   const seq = ++loadSeq;
   if (!quiet) { S.loading = true; emit(); }
   try {
     const q = sid ? `?s=${encodeURIComponent(sid)}` : listing ? `?l=${encodeURIComponent(listing)}` : '';
     // Money, the house, documents and wave 4 blocks come from a second call (keeps each Worker call small); merged before render.
-    const more = (s) => api('/app/api/state-more?s=' + encodeURIComponent(s)).catch(() => null);
-    const [d, m0] = await Promise.all([api('/app/api/state' + q), sid ? more(sid) : null]);
+    const more = (s: string) => api<Partial<State> & { search_id?: string }>('/app/api/state-more?s=' + encodeURIComponent(s)).catch((): null => null);
+    const [d, m0] = await Promise.all([api<State>('/app/api/state' + q), sid ? more(sid) : null]);
     const canMore = d.search && d.me?.role && d.me.role !== 'guest';
     const m = canMore ? (m0 && m0.search_id === d.search.id ? m0 : await more(d.search.id)) : null;
     if (m) { const { search_id, ...rest } = m; Object.assign(d, rest); }
@@ -79,10 +81,10 @@ export async function load(sid, { quiet = false, listing = null } = {}) {
   S.loading = false;
   emit();
 }
-export let refreshTimer;
+export let refreshTimer: ReturnType<typeof setTimeout> | undefined;
 export const refresh = () => { clearTimeout(refreshTimer); refreshTimer = setTimeout(() => S.data?.search && load(S.data.search.id, { quiet: true }), 600); };
 
-export async function vote(lid, decision) {
+export async function vote(lid: string, decision: string) {
   const d = S.data;
   const uid = d.user.id;
   d.votes = d.votes.filter((v) => !(v.listing_id === lid && v.user_id === uid)).concat([{ listing_id: lid, user_id: uid, decision, at: new Date().toISOString() }]);
@@ -95,7 +97,7 @@ export async function vote(lid, decision) {
   } catch { toast(t('err_generic')); }
   refresh();
 }
-export async function unvote(lid) {
+export async function unvote(lid: string) {
   const d = S.data;
   d.votes = d.votes.filter((v) => !(v.listing_id === lid && v.user_id === d.user.id));
   const l = d.listings.find((x) => x.id === lid);

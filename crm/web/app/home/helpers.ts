@@ -1,4 +1,3 @@
-// Split from app.js (wave 11): see the section comment below.
 import { api, authHeaders } from '../core/api.js';
 import { D, canVoteRole, districtShort, listingById, memberById, photosOf } from '../core/data.js';
 import { TG, inTG } from '../core/env.js';

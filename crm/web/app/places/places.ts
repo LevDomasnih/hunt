@@ -1,4 +1,3 @@
-// Split from app.js (wave 11): see the section comment below.
 import { api, cssVar, refresh } from '../core/api.js';
 import { D, canVoteRole, districtShort, listingById, minutesFor, photosOf, priceText, subRegion } from '../core/data.js';
 import { fmtNum, km, shortTitle } from '../core/format.js';
@@ -245,7 +244,7 @@ export function SpotSheet({ id }) {
     setBusy(true);
     try {
       const r = await api('/app/api/place', { id: p.id, ...patch });
-      d.places = (d.places ?? []).map((x) => (x.id === p.id ? { ...x, ...r.place } : x));
+      D().places = (D().places ?? []).map((x) => (x.id === p.id ? { ...x, ...r.place } : x));
       hap.ok(); toast(t('sp_saved')); if (patch.hidden) closeSheet(); emit(); refresh();
     } catch { toast(t('err_generic')); }
     setBusy(false);

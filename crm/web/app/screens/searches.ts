@@ -1,4 +1,3 @@
-// Split from app.js (wave 11): see the section comment below.
 import { D } from '../core/data.js';
 import { t } from '../core/i18n.js';
 import { go } from '../core/routing.js';

@@ -1,4 +1,3 @@
-// Split from app.js (wave 11): see the section comment below.
 import { api } from '../core/api.js';
 import { D, canVoteRole, photosOf } from '../core/data.js';
 import { fmtDM, fmtNum, fmtTime } from '../core/format.js';

@@ -1,4 +1,3 @@
-// Split from app.js (wave 11): see the section comment below.
 import { api, refresh } from '../core/api.js';
 import { D, canVoteRole, districtShort, memberById, photoUrl, votersN } from '../core/data.js';
 import { channelName, dayKey, dfmt, fmtDM, money } from '../core/format.js';
@@ -64,7 +63,7 @@ export function MoStepSheet({ k }) {
   const st = d.moveout?.steps?.[k] ?? { status: 'todo' };
   const done = st.status === 'done';
   async function mark(status) {
-    try { const r = await api('/app/api/moveout-step', { search_id: d.search.id, key: k, status }); d.moveout = r.moveout; hap.ok(); toast(t('mo_saved')); closeSheet(); emit(); }
+    try { const r = await api('/app/api/moveout-step', { search_id: d.search.id, key: k, status }); D().moveout = r.moveout; hap.ok(); toast(t('mo_saved')); closeSheet(); emit(); }
     catch { toast(t('err_generic')); }
   }
   return html`<h2>${moTitle(k, st)}</h2><p class="muted" style="margin:0 0 14px">${moSub(k, st)}</p>
@@ -148,7 +147,7 @@ export async function nextVote(choice) {
   emit();
   try {
     const x = await api('/app/api/next-vote', { search_id: d.search.id, choice });
-    if (x.renewal) d.renewal = x.renewal;
+    if (x.renewal) D().renewal = x.renewal;
     hap.ok(); emit();
     if (x.renewal?.status === 'decided') refresh();
   } catch { r.votes = prev; emit(); toast(t('err_generic')); }

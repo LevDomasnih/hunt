@@ -1,4 +1,3 @@
-// Split from app.js (wave 11): see the section comment below.
 import { AfPlanCard } from '../afisha/afisha.js';
 import { D, districtShort, memberById } from '../core/data.js';
 import { dayKey, firstName, fmtDM, money } from '../core/format.js';

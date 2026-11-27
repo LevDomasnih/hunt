@@ -1,4 +1,3 @@
-// Split from app.js (wave 11): see the section comment below.
 import { D, defaultDay, districtName, listingById, photosOf, priceText, viewingsByDay } from '../core/data.js';
 import { fmtTime, shortTitle, wdShort } from '../core/format.js';
 import { t } from '../core/i18n.js';

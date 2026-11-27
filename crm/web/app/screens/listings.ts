@@ -1,4 +1,3 @@
-// Split from app.js (wave 11): see the section comment below.
 import { api, authHeaders, refresh, unvote, vote } from '../core/api.js';
 import { CRIT, CRIT_ICON, D, animalName, canVoteRole, deckIds, districtName, districtShort, extraCost, fmtScore, interestOf, isNewForMe, listingById, memberById, memberLabel, myRating, myVote, photosOf, priceText, ratingOf, sceneStyle, viewedOf, votesFor } from '../core/data.js';
 import { TG, inTG, reduceMotion, tg } from '../core/env.js';
@@ -455,7 +454,7 @@ export function Rate({ id }) {
     setBusy(true);
     try {
       const r = await api('/app/api/rate', { listing_id: id, ...vals, note: note.trim() || null, voice });
-      (d.ratings ??= {})[id] = r.rating;
+      (D().ratings ??= {})[id] = r.rating;
       hap.ok();
       toast(t('rating_saved'));
       if (depth > 0) back(); else go(sp('listing', id), true);

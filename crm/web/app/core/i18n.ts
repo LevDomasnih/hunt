@@ -1,11 +1,14 @@
-// Split from app.js (wave 11): see the section comment below.
+// The app's words in Russian and English: t(key, vars), plurals, field and value labels.
 
-
-// ---------------------------------------------------------------- i18n
-export let LANG = 'ru';
-export const PR = { ru: new Intl.PluralRules('ru'), en: new Intl.PluralRules('en') };
+/** A text, or a function of a count (and the vars) for plurals. */
+export type Msg = string | ((n: number, vars: Bag) => string);
+export type Lang = 'ru' | 'en';
+export let LANG: Lang = 'ru';
+export const PR: { [lang: string]: Intl.PluralRules } = { ru: new Intl.PluralRules('ru'), en: new Intl.PluralRules('en') };
+/** An inline pair for the screens that keep their words next to the markup (desk, access, agent, new project). */
+export const L = <T>(ru: T, en: T): T => (LANG === 'en' ? en : ru);
 /** pl(n, one, few, many) for ru; pl(n, one, other) for en */
-export const pl = (n, ...f) => {
+export const pl = (n: number, ...f: string[]): string => {
   const c = PR[LANG].select(n);
   if (LANG === 'ru') return c === 'one' ? f[0] : c === 'few' ? f[1] : f[2];
   return c === 'one' ? f[0] : f[1] ?? f[0];
@@ -723,14 +726,19 @@ export const STR = {
     gq_req: '{g} asks to write to {c}:', gq_send: 'Send', gq_skip: 'Do not send', gq_edit: 'Edit the text', gq_sent: 'The agent will send the message', gq_skipped: 'Not sending',
     lc_stale: 'The agent will recompute the rings', lc_rush: 'Rings are travel time{m} without traffic; in rush hour add roughly {p}%', lc_rush_m: '',
   },
-};
-export function t(k, vars: Bag = {}) {
-  let v = STR[LANG][k] ?? STR.en[k] ?? k;
-  if (typeof v === 'function') v = v(vars.n ?? 0, vars);
+} satisfies { [lang: string]: { [key: string]: Msg } };
+const DICT: { [lang: string]: { [key: string]: Msg } } = STR;
+/** Words a module adds: Object.assign(STR.ru, words({ … })); plural functions get n: number. */
+export const words = (o: { [key: string]: Msg }) => o;
+export function t(k: string, vars: Bag = {}): string {
+  const m = DICT[LANG][k] ?? DICT.en[k] ?? k;
+  const v = typeof m === 'function' ? m(vars.n ?? 0, vars) : m;
   return v.replace(/\{(\w+)\}/g, (_, x) => vars[x] ?? '');
 }
 
-export const FL = {
+/** Pairs [ru, en] by key. */
+export type Pairs = { [key: string]: [string, string] | string[] };
+export const FL: Pairs = {
   living_room: ['Гостиная', 'Living room'], kitchen: ['Кухня', 'Kitchen'], pool: ['Бассейн', 'Pool'], bedrooms_ensuite: ['Ванные при спальнях', 'En-suite'],
   electricity: ['Свет', 'Power'], power_capacity_va: ['Мощность, VA', 'Power, VA'], water: ['Вода', 'Water'], internet: ['Интернет', 'Internet'], cleaning: ['Уборка', 'Cleaning'],
   pool_garden_service: ['Бассейн и сад', 'Pool & garden'], banjar_security_garbage: ['Банджар, охрана, мусор', 'Banjar, security, garbage'], payment_terms: ['Оплата', 'Payment'],
@@ -744,7 +752,7 @@ export const FL = {
   pets_allowed: ['Животные', 'Pets'], common_fee_payer: ['Общий сбор платит', 'Common fee paid by'], tm30_by_landlord: ['TM30 от хозяина', 'TM30 by landlord'],
   bts_mrt_walk_min: ['До метро, мин', 'To BTS/MRT, min'], beach_distance_km: ['До пляжа, км', 'To beach, km'], property_type: ['Тип', 'Type'], available_from: ['Свободна с', 'Available from'],
 };
-export const EV = {
+export const EV: Pairs = {
   closed_ac: ['Закрытая, с кондиционером', 'Closed, with AC'], closed_no_ac: ['Закрытая, без кондиционера', 'Closed, no AC'], semi_open: ['Полуоткрытая', 'Semi-open'], open: ['Открытая', 'Open'],
   private: ['Свой', 'Private'], shared: ['Общий', 'Shared'], none: ['Нет', 'None'], included: ['Входит в цену', 'Included'], included_capped: ['Входит, с лимитом', 'Included, capped'],
   token_tenant: ['Токены, платим сами', 'Prepaid token, we pay'], postpaid_tenant: ['По счёту, платим сами', 'Postpaid, we pay'], closed: ['Закрытая', 'Closed'], open_air: ['Открытая', 'Open-air'],
@@ -761,16 +769,16 @@ export const EV = {
   gov_rate: ['По госу тарифу', 'Government rate'], building_rate: ['Тариф дома', 'Building rate'], owner_rate: ['Тариф хозяина', 'Owner rate'], tenant: ['Арендатор', 'Tenant'],
   individual_owner: ['Частный хозяин', 'Private owner'], ocean: ['На океан', 'Ocean'], villa: ['Вилла', 'Villa'], house: ['Дом', 'House'], apartment: ['Квартира', 'Apartment'], condo: ['Кондо', 'Condo'],
 };
-export const INC = { wifi: ['Wi-Fi', 'Wi-Fi'], internet: ['интернет', 'internet'], water: ['вода', 'water'], banjar: ['банджар', 'banjar'], cleaning: ['уборка', 'cleaning'], electricity: ['свет', 'power'],
+export const INC: Pairs = { wifi: ['Wi-Fi', 'Wi-Fi'], internet: ['интернет', 'internet'], water: ['вода', 'water'], banjar: ['банджар', 'banjar'], cleaning: ['уборка', 'cleaning'], electricity: ['свет', 'power'],
   pool: ['бассейн', 'pool'], pool_service: ['бассейн', 'pool service'], garden: ['сад', 'garden'], security: ['охрана', 'security'], garbage: ['мусор', 'garbage'], laundry: ['стирка', 'laundry'], gas: ['газ', 'gas'] };
-export const TERMS = { '1 month': ['1 месяц', '1 month'], '2-3 months': ['2–3 месяца', '2–3 months'], '3-6 months': ['3–6 месяцев', '3–6 months'], '6-12 months': ['6–12 месяцев', '6–12 months'], '12+ months': ['от года', '12+ months'] };
-export const pick2 = (pair) => (pair ? pair[LANG === 'ru' ? 0 : 1] : null);
-export const human = (s) => String(s ?? '').replace(/_/g, ' ').replace(/^\w/, (c) => c.toUpperCase());
-export const cap = (s) => (s ? s[0].toUpperCase() + s.slice(1) : s);
-export const fieldLabel = (k) => pick2(FL[k]) ?? human(k);
-export const enumLabel = (v) => (typeof v === 'boolean' ? t(v ? 'yes' : 'no') : pick2(EV[v]) ?? (typeof v === 'string' && /^[a-z0-9_]+$/.test(v) ? human(v) : String(v)));
+export const TERMS: Pairs = { '1 month': ['1 месяц', '1 month'], '2-3 months': ['2–3 месяца', '2–3 months'], '3-6 months': ['3–6 месяцев', '3–6 months'], '6-12 months': ['6–12 месяцев', '6–12 months'], '12+ months': ['от года', '12+ months'] };
+export const pick2 = (pair: string[] | null | undefined): string | null => (pair ? pair[LANG === 'ru' ? 0 : 1] : null);
+export const human = (s: unknown) => String(s ?? '').replace(/_/g, ' ').replace(/^\w/, (c) => c.toUpperCase());
+export const cap = (s: string) => (s ? s[0].toUpperCase() + s.slice(1) : s);
+export const fieldLabel = (k: string) => pick2(FL[k]) ?? human(k);
+export const enumLabel = (v: unknown) => (typeof v === 'boolean' ? t(v ? 'yes' : 'no') : pick2(EV[String(v)]) ?? (typeof v === 'string' && /^[a-z0-9_]+$/.test(v) ? human(v) : String(v)));
 
-export function applyLang(l) {
+export function applyLang(l: string) {
   LANG = l === 'en' ? 'en' : 'ru';
   document.documentElement.lang = LANG;
 }

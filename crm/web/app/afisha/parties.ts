@@ -1,8 +1,7 @@
-// Split from app.js (wave 11): see the section comment below.
 import { api, cssVar } from '../core/api.js';
 import { D, canVoteRole, memberById, photoUrl, photosOf, sceneStyle } from '../core/data.js';
 import { firstName, fmtNum, initial, money, tzNow } from '../core/format.js';
-import { LANG, STR, pl, t } from '../core/i18n.js';
+import { LANG, STR, pl, t, words } from '../core/i18n.js';
 import { go, openLink, sp } from '../core/routing.js';
 import { closeSheet, hap, openSheet, toast } from '../core/store.js';
 import { addDays } from '../home/calendar.js';
@@ -21,7 +20,7 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 // ---------------------------------------------------------------- wave 9 · evenings & parties (DESIGN.md "Block vibe")
 // Своя тусовка (party ticket, guests, checklist → Деньги, invite link, local rules, recap), the evening Home hero with the
 // leave-by time, "Как было?" on events, the evening map layer and the share card (canvas, ticket style) + public links.
-Object.assign(STR.ru, {
+Object.assign(STR.ru, words({
   pt_title: 'Своя тусовка', pt_new: 'Своя тусовка', pt_new_sub: 'Позвать друзей домой', pt_ours: 'Ваши тусовки', pt_at_home: 'у нас дома', pt_home: 'дома',
   pt_going_n: (n) => `${n} ${pl(n, 'идёт', 'идут', 'идут')}`, pt_left_n: (n) => `ещё ${n} ${pl(n, 'место', 'места', 'мест')}`, pt_full: 'мест нет', pt_maybe_n: (n) => `${n} может`, pt_no_n: (n) => `${n} не смогут`,
   pt_invite: 'Приглашение', pt_invite_sub: 'Страница без Telegram: «Иду / Может / Не смогу». Адрес видят только те, кто ответил «Иду»', pt_share: 'Позвать', pt_copy: 'Скопировать', pt_regen: 'Новая ссылка', pt_revoke: 'Закрыть ссылку',
@@ -46,8 +45,8 @@ Object.assign(STR.ru, {
   sh_title: 'Поделиться', sh_tg: 'В Telegram', sh_copy: 'Ссылка', sh_img: 'Картинка', sh_party_note: 'По ссылке гости ответят «Иду» и увидят адрес только после этого', sh_ev_note: 'Открытая страница события: без входа, без адресов дома',
   sh_text_ev: '{t} · {w}', sh_text_pt: 'Зову на {t}, {w}',
   hm_layer_evening: 'Вечер', mp_evening: 'Вечер', mp_evening_none: 'Сегодня вечером рядом пусто', w9_party_link: 'Тусовка',
-});
-Object.assign(STR.en, {
+}));
+Object.assign(STR.en, words({
   pt_title: 'House party', pt_new: 'House party', pt_new_sub: 'Have friends over', pt_ours: 'Your parties', pt_at_home: 'at ours', pt_home: 'home',
   pt_going_n: (n) => `${n} going`, pt_left_n: (n) => `${n} ${pl(n, 'spot', 'spots')} left`, pt_full: 'full', pt_maybe_n: (n) => `${n} maybe`, pt_no_n: (n) => `${n} can’t`,
   pt_invite: 'Invitation', pt_invite_sub: 'A page without Telegram: “I’m in / Maybe / Can’t”. Only “I’m in” guests see the address', pt_share: 'Invite', pt_copy: 'Copy', pt_regen: 'New link', pt_revoke: 'Close link',
@@ -72,7 +71,7 @@ Object.assign(STR.en, {
   sh_title: 'Share', sh_tg: 'Telegram', sh_copy: 'Link', sh_img: 'Picture', sh_party_note: 'Guests answer “I’m in” on the page and only then see the address', sh_ev_note: 'A public event page: no login, no home address',
   sh_text_ev: '{t} · {w}', sh_text_pt: 'Come to {t}, {w}',
   hm_layer_evening: 'Tonight', mp_evening: 'Tonight', mp_evening_none: 'Nothing on nearby tonight', w9_party_link: 'Party',
-});
+}));
 Object.assign(ICONS, {
   share: '<path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><path d="m16 6-4-4-4 4"/><path d="M12 2v13"/>',
   'trash-2': '<path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>',

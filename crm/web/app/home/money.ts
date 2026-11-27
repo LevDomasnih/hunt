@@ -1,4 +1,3 @@
-// Split from app.js (wave 11): see the section comment below.
 import { api, load } from '../core/api.js';
 import { D, canVoteRole, districtShort, memberById } from '../core/data.js';
 import { LOC, SYM, dayKey, dfmt, firstName, fmtDM, fmtDMY, fmtNum, money, shortTitle, wdShort } from '../core/format.js';
@@ -117,7 +116,7 @@ export function Money() {
     setBusy(true);
     try {
       const r = await api('/app/api/settle', { search_id: d.search.id, from: top.from, to: top.to, amount: top.amount, currency: cur });
-      d.money = r.money;
+      D().money = r.money;
       hap.ok();
       toast(t('settled_toast'));
       emit();
@@ -336,7 +335,7 @@ export function SharesSheet() {
   const sum = Object.values(w).reduce((a, b) => a + b, 0) || 1;
   const step = (u, x) => { hap.sel(); setW({ ...w, [u]: Math.max(0, Math.min(10, Math.round(((w[u] ?? 0) + x) * 2) / 2)) }); };
   async function save() {
-    try { const r = await api('/app/api/shares', { search_id: d.search.id, shares: w }); d.money = r.money; hap.ok(); toast(t('shares_saved')); closeSheet(); emit(); }
+    try { const r = await api('/app/api/shares', { search_id: d.search.id, shares: w }); D().money = r.money; hap.ok(); toast(t('shares_saved')); closeSheet(); emit(); }
     catch { toast(t('err_generic')); }
   }
   return html`<h2>${t('shares')}</h2><p class="muted" style="margin:0 0 14px">${t('shares_text')}</p>

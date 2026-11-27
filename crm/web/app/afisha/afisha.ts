@@ -1,4 +1,3 @@
-// Split from app.js (wave 11): see the section comment below.
 import { fxMount } from '../../fx.js';
 import { api } from '../core/api.js';
 import { D, canVoteRole, listingById, memberById, photoUrl, sceneStyle } from '../core/data.js';

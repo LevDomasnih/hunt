@@ -1,0 +1,19 @@
+{
+  "//": "Files checked with the stricter options (scripts/typecheck-web.mjs). Add a file once its errors are fixed; never remove one.",
+  "files": [
+    "types/api.ts",
+    "types/rows.ts",
+    "app.ts",
+    "app/core/env.ts",
+    "app/core/routing.ts",
+    "app/ui/shell.ts",
+    "app/core/store.ts",
+    "app/ui/toast.ts",
+    "app/core/api.ts",
+    "app/core/format.ts",
+    "app/core/i18n.ts",
+    "app/core/data.ts",
+    "app/ui/icons.ts",
+    "app/ui/pieces.ts"
+  ]
+}

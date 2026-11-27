@@ -1,4 +1,3 @@
-// Split from app.js (wave 11): see the section comment below.
 import { api, refresh } from '../core/api.js';
 import { D, canVoteRole } from '../core/data.js';
 import { channelName, dayKey, fmtDM, initial, money, relIn, whenLabel } from '../core/format.js';
@@ -129,7 +128,7 @@ export function IssueSheet() {
     setBusy(true);
     try {
       const r = await api('/app/api/issue', { search_id: d.search.id, title: title.trim(), note: note.trim() || null });
-      (d.issues ??= []).unshift(r.issue);
+      (D().issues ??= []).unshift(r.issue);
       hap.ok();
       toast(t('is_sent'));
       closeSheet();

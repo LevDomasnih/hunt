@@ -1,4 +1,3 @@
-// Split from app.js (wave 11): see the section comment below.
 import { api } from '../core/api.js';
 import { D, canVoteRole, districtShort, listingById } from '../core/data.js';
 import { dayKey, fmtDM, money, shortTitle } from '../core/format.js';
@@ -89,13 +88,13 @@ export function ItemSheet({ id }) {
   const cur = d.items?.currency ?? briefCur(d.search);
   async function save(extra = {}) {
     setBusy(true);
-    try { const r = await api('/app/api/item', { search_id: d.search.id, id: it?.id ?? 'new', ...f, price: parseAmount(f.price), currency: cur, ...extra }); d.items = r.items; hap.ok(); toast(t('it_saved')); closeSheet(); emit(); }
+    try { const r = await api('/app/api/item', { search_id: d.search.id, id: it?.id ?? 'new', ...f, price: parseAmount(f.price), currency: cur, ...extra }); D().items = r.items; hap.ok(); toast(t('it_saved')); closeSheet(); emit(); }
     catch { toast(t('err_generic')); }
     setBusy(false);
   }
   async function del() {
     setBusy(true);
-    try { const r = await api('/app/api/item-delete', { id: it.id }); d.items = r.items; hap.ok(); closeSheet(); emit(); } catch { toast(t('err_generic')); }
+    try { const r = await api('/app/api/item-delete', { id: it.id }); D().items = r.items; hap.ok(); closeSheet(); emit(); } catch { toast(t('err_generic')); }
     setBusy(false);
   }
   return html`<h2>${it ? it.name : t('it_new')}</h2>

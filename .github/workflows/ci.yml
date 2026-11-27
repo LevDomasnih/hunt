@@ -37,7 +37,7 @@ jobs:
         run: npm ci --no-audit --no-fund
       - name: Types (server and Mini App)
         working-directory: hunt/crm
-        run: npx tsc --noEmit -p . && npx tsc --noEmit -p web
+        run: npm run typecheck
       - name: Build the Mini App
         working-directory: hunt/crm
         run: node scripts/build-web.mjs
