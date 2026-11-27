@@ -2,7 +2,9 @@
   "name": "hunt-crm",
   "private": true,
   "type": "module",
-  "engines": { "node": ">=22.5" },
+  "engines": {
+    "node": ">=22.5"
+  },
   "scripts": {
     "art": "node scripts/copy-art.mjs",
     "build:web": "node scripts/build-web.mjs",
@@ -13,14 +15,19 @@
     "migrate": "wrangler d1 migrations apply hunt --remote",
     "typecheck": "tsc --noEmit && tsc --noEmit -p web && node scripts/typecheck-web.mjs && node scripts/web-rows.mjs --check",
     "test:households": "node scripts/test-households.mjs",
+    "test:roles": "node scripts/test-roles-money.mjs",
+    "test:ui": "node scripts/test-demo-ui.mjs",
+    "lint": "biome lint .",
     "test:agent-token": "node scripts/test-agent-token.mjs",
     "schema": "node scripts/schema.mjs",
     "build:node": "node scripts/build-node.mjs",
     "start:node": "node --disable-warning=ExperimentalWarning dist/server.mjs"
   },
   "devDependencies": {
+    "@biomejs/biome": "2.6.7",
     "@cloudflare/workers-types": "^5.20261119.1",
     "esbuild": "0.28.2",
+    "playwright-core": "1.65.0",
     "typescript": "^5.6.0",
     "wrangler": "^4.165.0"
   },

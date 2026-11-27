@@ -45,4 +45,4 @@ def owner_of(name: str):
 
 
 if __name__ == "__main__":
-    mcp.run()
+    mcp.run()  # noqa: F821 (copied in from huntcore.base above)

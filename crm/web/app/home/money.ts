@@ -2,7 +2,7 @@ import { api, load } from '../core/api.js';
 import { D, canVoteRole, districtShort, memberById } from '../core/data.js';
 import { LOC, SYM, dayKey, dfmt, firstName, fmtDM, fmtDMY, fmtNum, money, shortTitle, wdShort } from '../core/format.js';
 import { LANG, cap, t } from '../core/i18n.js';
-import { back, go, sp } from '../core/routing.js';
+import { go, sp } from '../core/routing.js';
 import { closeSheet, emit, hap, openSheet, toast } from '../core/store.js';
 import { Good, OrderReceiptOf } from '../orders/orders.js';
 import { briefCur } from '../screens/deal.js';

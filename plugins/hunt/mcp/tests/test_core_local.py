@@ -2,7 +2,6 @@
 from _regions import real_regions
 import asyncio
 from datetime import datetime
-from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 from zoneinfo import ZoneInfo
 

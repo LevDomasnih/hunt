@@ -1,11 +1,11 @@
 // Hunt on a big screen (≥ 1024 px, design/desktop): the rail, the screens as columns on one colour, Hunt as a black device that
 // prints one ticket with the decision. Data, helpers and every secondary screen come from app.js (shown in a column), nothing is
 // cut from the phone version. app.js imports this file; the names below are used only while rendering (circular import).
-import type { Listing, Thread } from './types/api.js';
+import type { Listing, Thread as ThreadRow } from './types/api.js';
 import { html } from 'htm/preact';
 import { useState, useEffect, useRef, useMemo } from 'preact/hooks';
 import { TkPhoto, useAfisha, AF, afTitle, afHM, afPlace, afPrice, afLang, afWhy, afTravel, afDay, afDayLong, afFeedback, afBook, afIcon, afArea } from './app/afisha/afisha.js';
-import { api, refresh, load, isDark, cssVar, vote } from './app/core/api.js';
+import { api, refresh, isDark, cssVar, vote } from './app/core/api.js';
 import { D, listingById, memberById, votesFor, myVote, photosOf, photoUrl, districtShort, districtName, priceText, minutesFor, interestOf, canVoteRole, isNewForMe, viewingsByDay, subRegion } from './app/core/data.js';
 import { pref, inTG } from './app/core/env.js';
 import { money, dfmt, fmtTime, fmtDM, fmtDayMonth, wdShort, dayKey, firstName, shortTitle, km, channelName } from './app/core/format.js';
@@ -13,7 +13,7 @@ import { LANG, t, cap, pl, L } from './app/core/i18n.js';
 import { go, sp, back, openLink } from './app/core/routing.js';
 import { S, emit, toast, hap, openSheet } from './app/core/store.js';
 import { docTitle, docSub } from './app/home/docs.js';
-import { scaled, skel, msgCard, hm, copyText, regionPack } from './app/home/helpers.js';
+import { skel, msgCard, hm, copyText, regionPack } from './app/home/helpers.js';
 import { homeMode, homeListing, homePhase, homeStage, hmStay, hmDays, hmToday, hmName, useEventPlan } from './app/home/homemode.js';
 import { dealPaid } from './app/home/money.js';
 import { useSurf, surfBest, sfH, briefMentionsSurf } from './app/home/surf.js';
@@ -262,7 +262,7 @@ function Rail({ screen }) {
 }
 
 // ---------------------------------------------------------------- Home
-function DeskHome({ desk }) {
+function DeskHome() {
   const d = D(), l = homeListing(), ph = photosOf(l)[0], phase = homePhase(), today = hmToday(), night = nightMode() || isDark();
   const sv = useSurf(d.search.id, phase !== 'closed' && (briefMentionsSurf() || !!d.me.surf));
   const ep = useEventPlan();
@@ -351,16 +351,16 @@ function thGroups(q, arch?) {
   const dr0 = new Set((D().drafts ?? []).map((x) => x.contact_id));
   if (arch) {
     // the search archive: who wrote after the move, homes we turned down, homes that never answered
-    const a: [string, Thread[]][] = [[L('Написали после заезда', 'Wrote after the move'), []], [L('Отказались', 'Turned down'), []], [ARCH_NO(), []]];
+    const a: [string, ThreadRow[]][] = [[L('Написали после заезда', 'Wrote after the move'), []], [L('Отказались', 'Turned down'), []], [ARCH_NO(), []]];
     for (const th of archThreads().filter(has)) a[th.state === 'waiting_us' || dr0.has(th.contact_id) ? 0 : th.state === 'waiting_them' ? 2 : 1][1].push(th);
     return a.filter(([, x]) => x.length);
   }
   if (homeMode()) {
-    const h: [string, Thread[]][] = [[L('Ждут тебя', 'Waiting for you'), []], [L('Дом', 'Home'), []]];
+    const h: [string, ThreadRow[]][] = [[L('Ждут тебя', 'Waiting for you'), []], [L('Дом', 'Home'), []]];
     for (const th of homeThreads().filter(has)) h[th.state === 'waiting_us' || dr0.has(th.contact_id) ? 0 : 1][1].push(th);
     return h.filter(([, x]) => x.length);
   }
-  const list = sortedThreads().filter(has), g: [string, Thread[]][] = [[L('Ждут тебя', 'Waiting for you'), []], [L('Торг', 'Bargaining'), []], [L('Ждём', 'We wait'), []], [L('Закрыто', 'Closed'), []]];
+  const list = sortedThreads().filter(has), g: [string, ThreadRow[]][] = [[L('Ждут тебя', 'Waiting for you'), []], [L('Торг', 'Bargaining'), []], [L('Ждём', 'We wait'), []], [L('Закрыто', 'Closed'), []]];
   const dr = new Set((D().drafts ?? []).map((x) => x.contact_id));
   for (const th of list) {
     const l = listingById(th.listing_id);
@@ -670,7 +670,9 @@ function DeskMoney() {
   const perDay = (sum - rent) / Math.max(1, dayN), fc = rent + perDay * daysIn;
   const bm = bigMoney(sum, cur), bf = bigMoney(fc, cur);
   const f = (b) => (n) => new Intl.NumberFormat(LANG === 'ru' ? 'ru-RU' : 'en-US', { maximumFractionDigits: b.dec }).format(n);
-  const kinds = Object.entries(mon.reduce((a, e) => ({ ...a, [e.kind]: (a[e.kind] ?? 0) + Number(e.amount) }), {})).sort((a, b) => b[1] - a[1]).slice(0, 5);
+  const byKind: { [kind: string]: number } = {};
+  for (const e of mon) byKind[e.kind] = (byKind[e.kind] ?? 0) + Number(e.amount);
+  const kinds = Object.entries(byKind).sort((a, b) => b[1] - a[1]).slice(0, 5);
   const list = [...(m.expenses ?? [])].sort((a, b) => String(b.date).localeCompare(String(a.date)));
   const tr = m.balances?.[cur]?.transfers ?? [], top = tr.find((x) => x.from === d.user.id || x.to === d.user.id) ?? tr[0];
   const can = canVoteRole(d.me.role) && !d.path?.closed;
@@ -691,7 +693,7 @@ function DeskMoney() {
 }
 
 // ---------------------------------------------------------------- Events
-function DeskAfisha({ arg, desk }) {
+function DeskAfisha({ desk }) {
   const d = D();
   const [v, again] = useAfisha('all');
   const [pickK, setPickK] = useState(null);

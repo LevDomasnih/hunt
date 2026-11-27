@@ -8,8 +8,6 @@ export const isDay = (v: unknown) => typeof v === 'string' && /^\d{4}-\d{2}-\d{2
 export const addDays = (d: string, n: number) => new Date(Date.parse(d + 'T12:00:00Z') + n * 864e5).toISOString().slice(0, 10);
 export const localDay = (tz: string, at = Date.now()) =>
   dtf('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(at));
-const localHour = (tz: string, at = Date.now()) =>
-  Number(dtf('en-GB', { timeZone: tz, hour: '2-digit', hourCycle: 'h23' }).format(new Date(at)));
 export function noSecrets(what: string, ...parts: unknown[]) {
   const s = sensitive(parts.map((x) => (typeof x === 'string' ? x : JSON.stringify(x ?? ''))).join(' '));
   if (s) throw new HttpError(400, 'sensitive', `${what} looks like it contains ${s}. Remove it.`);

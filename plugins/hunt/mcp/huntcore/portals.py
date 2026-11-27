@@ -1,40 +1,16 @@
 """Hunt core: portals (split from hunt_core.py)."""
 from __future__ import annotations
-import asyncio
 import contextlib
 import html
-import io
 import json
 import logging
 import math
-import mimetypes
-import os
 import re
-import shutil
-import subprocess
-import sys
-import tempfile
-import time
-import xml.etree.ElementTree as ET
-from collections import Counter
-from datetime import date, datetime, timedelta
-from pathlib import Path
+from datetime import datetime
 from typing import Any
-from urllib.parse import parse_qs, quote, unquote, unquote_plus, urlencode, urlparse
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
-import httpx
-import keyring
-import yaml
-try:  # mcp 1.x
-    from mcp.server.fastmcp import FastMCP
-    from mcp.server.fastmcp.exceptions import ToolError
-except ImportError:  # mcp 2.x renamed FastMCP to MCPServer
-    from mcp.server.mcpserver import MCPServer as FastMCP
-    from mcp.server.mcpserver.exceptions import ToolError
-try:
-    import fcntl
-except ImportError:  # Windows: no file locking, writes are still atomic
-    fcntl = None  # type: ignore[assignment]
+from urllib.parse import parse_qs, urlparse
+from zoneinfo import ZoneInfo
+from huntcore.base import ToolError
 from huntcore import base as _base, deals as _deals, event_photos as _event_photos, event_sources as _event_sources, events as _events, places as _places
 # ---------------------------------------------------------------- portal pages (read-only): listing_source_read
 
@@ -766,7 +742,7 @@ def _ad_rumah123(body: str, base: str) -> dict:
         disp = pr.get("display")
         _set_price(li, pr.get("offer"), "IDR" if isinstance(disp, str) and re.match(r"\s*Rp", disp) else None, text=disp)
         at = r.get("attributes") if isinstance(r.get("attributes"), dict) else {}
-        val = lambda k: (at.get(k) or {}).get("value") if isinstance(at.get(k), dict) else None  # noqa: E731
+        val = lambda k: (at.get(k) or {}).get("value") if isinstance(at.get(k), dict) else None  # noqa: E731, B023 (used in this iteration)
         li["bedrooms"] = _int_or_none(val("bedrooms"))
         li["bathrooms"] = _int_or_none(val("bathrooms"))
         li["area_m2"] = _area_m2(val("buildingSize"))
@@ -832,7 +808,7 @@ def _ad_99co(body: str, base: str) -> dict:
         pin = r.get("location_pin") if isinstance(r.get("location_pin"), dict) else {}
         _set_geo(li, pin.get("lat"), pin.get("long") if pin.get("long") is not None else pin.get("lng"))
         loc = r.get("location") if isinstance(r.get("location"), dict) else {}
-        name = lambda k: _event_sources._text((loc.get(k) or {}).get("name"), 80) if isinstance(loc.get(k), dict) else None  # noqa: E731
+        name = lambda k: _event_sources._text((loc.get(k) or {}).get("name"), 80) if isinstance(loc.get(k), dict) else None  # noqa: E731, B023 (used in this iteration)
         li["city"], li["district"] = name("city"), name("district")
         li["address"] = _event_sources._text(r.get("full_address"), 200)
         li["photos"] = _photo_list(base, [mi.get("url") for m in (r.get("media") or []) if isinstance(m, dict)

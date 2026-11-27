@@ -1,40 +1,10 @@
 """Hunt core: house (split from hunt_core.py)."""
 from __future__ import annotations
-import asyncio
-import contextlib
-import html
-import io
-import json
-import logging
-import math
 import mimetypes
-import os
 import re
-import shutil
-import subprocess
-import sys
-import tempfile
-import time
-import xml.etree.ElementTree as ET
-from collections import Counter
-from datetime import date, datetime, timedelta
 from pathlib import Path
-from typing import Any
-from urllib.parse import parse_qs, quote, unquote, unquote_plus, urlencode, urlparse
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 import httpx
-import keyring
-import yaml
-try:  # mcp 1.x
-    from mcp.server.fastmcp import FastMCP
-    from mcp.server.fastmcp.exceptions import ToolError
-except ImportError:  # mcp 2.x renamed FastMCP to MCPServer
-    from mcp.server.mcpserver import MCPServer as FastMCP
-    from mcp.server.mcpserver.exceptions import ToolError
-try:
-    import fcntl
-except ImportError:  # Windows: no file locking, writes are still atomic
-    fcntl = None  # type: ignore[assignment]
+from huntcore.base import ToolError
 from huntcore import base as _base, deals as _deals, routes as _routes
 # ---------------------------------------------------------------- life in the villa
 
@@ -184,7 +154,7 @@ async def doc_set(
         raise ToolError(f"kind must be one of {', '.join(DOC_KINDS)}.")
     if status and status not in DOC_STATUSES:
         raise ToolError(f"status must be one of {', '.join(DOC_STATUSES)}.")
-    for name, v in (("due_date", due_date), ("doc_date", doc_date), ("signed_at", signed_at)):
+    for _name, v in (("due_date", due_date), ("doc_date", doc_date), ("signed_at", signed_at)):
         if v:
             _routes._parse_date(v)
     if doc_id == "new" and not title:

@@ -7,6 +7,7 @@ import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSy
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
+import { createServer } from 'node:http';
 import { fileURLToPath } from 'node:url';
 
 const crm = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -53,8 +54,8 @@ export function localServer({ name, port, inspector, vars = {} }) {
       log: () => log,
       async start() {
         proc = backend === 'node'
-          ? spawn(process.execPath, [join(crm, 'dist/server.mjs')], { cwd: crm, env: { ...process.env, ...env, PORT: String(port), HUNT_DB: dbFile, HUNT_CRON: '0' }, stdio: ['ignore', 'pipe', 'pipe'], detached: true })
-          : spawn('npx', ['--no-install', 'wrangler', 'dev', ...CFG, '--port', String(port), '--ip', '127.0.0.1', ...(inspector ? ['--inspector-port', String(inspector)] : []), '--env-file', join(dir, 'vars'), '--show-interactive-dev-session=false'],
+          ? spawn(process.execPath, [join(crm, 'dist/server.mjs')], { cwd: crm, env: { ...process.env, ...env, PORT: String(port), HUNT_DB: dbFile, HUNT_CRON: '0', HUNT_TEST_SCHEDULED: '1' }, stdio: ['ignore', 'pipe', 'pipe'], detached: true })
+          : spawn('npx', ['--no-install', 'wrangler', 'dev', ...CFG, '--port', String(port), '--ip', '127.0.0.1', ...(inspector ? ['--inspector-port', String(inspector)] : []), '--env-file', join(dir, 'vars'), '--test-scheduled', '--show-interactive-dev-session=false'],
             { cwd: crm, stdio: ['ignore', 'pipe', 'pipe'], detached: true });
         proc.stdout.on('data', (d) => (log += d)); proc.stderr.on('data', (d) => (log += d));
         for (let i = 0; ; i++) {
@@ -64,8 +65,37 @@ export function localServer({ name, port, inspector, vars = {} }) {
         }
         if (backend === 'wrangler' && !kvFile) kvFile = sqliteIn('kv/miniflare-KVNamespaceObject');
       },
+      // One cron tick (the 15-minute trigger), finished when this resolves.
+      async cron() { const r = await fetch(`${BASE}/__scheduled?cron=*/15+*+*+*+*`); if (!r.ok) throw new Error(`cron: HTTP ${r.status}`); await sleep(backend === 'node' ? 0 : 500); },
       stop() { try { if (proc) process.kill(-proc.pid); } catch { /* gone */ } },
       async cleanup() { this.stop(); await sleep(backend === 'node' ? 200 : 800); rmSync(dir, { recursive: true, force: true }); },
     };
   }
+}
+
+/** A fake Telegram Bot API on a local port: records every call, answers ok. Point the server at it with TG_API + a non-fake token. */
+export async function fakeTelegram() {
+  const calls = [];
+  let id = 100;
+  const srv = createServer((req, res) => {
+    let body = '';
+    req.on('data', (c) => (body += c));
+    req.on('end', () => {
+      const m = req.url.match(/^\/bot[^/]+\/(\w+)/);
+      let params = {};
+      try { params = JSON.parse(body || '{}'); } catch { /* form data: keep raw */ params = { raw: body.length }; }
+      calls.push({ method: m?.[1] ?? req.url, params });
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ ok: true, result: m?.[1] === 'getMe' ? { id: 1, username: 'test_bot' } : { message_id: ++id, chat: { id: params.chat_id ?? 0 } } }));
+    });
+  });
+  await new Promise((ok) => srv.listen(0, '127.0.0.1', ok));
+  return {
+    url: `http://127.0.0.1:${srv.address().port}`,
+    calls,
+    /** Messages sent to one chat (sendMessage / editMessageText / sendPhoto), oldest first. */
+    to: (chat) => calls.filter((c) => /^(sendMessage|sendPhoto|editMessageText)$/.test(c.method) && String(c.params.chat_id) === String(chat)),
+    clear: () => { calls.length = 0; },
+    stop: () => new Promise((ok) => srv.close(ok)),
+  };
 }

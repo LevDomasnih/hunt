@@ -158,7 +158,6 @@ export function PartyScreen({ id }) {
   const toggleDone = async (it) => { const j = await post('/app/api/party-item', { item_id: it.id, done: !it.done }); if (j) set(j); };
   const notice = async (to) => { const j = await post('/app/api/party-notice', { to }); if (j) toast(j.already ? t('pt_notice_already') : t('pt_notice_sent')); };
   const past = p.past;
-  const going = v.guests.filter((g) => !g.removed && g.answer === 'going');
   const order = { going: 0, maybe: 1, no: 2 };
   const guests = [...v.guests].sort((a, b) => Number(a.removed) - Number(b.removed) || order[a.answer] - order[b.answer]);
   const done = v.items.filter((i) => i.done || i.who).length;

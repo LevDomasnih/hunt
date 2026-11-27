@@ -1,6 +1,6 @@
 // Split from wave5.ts.
 import { areaNameOf, homePoint, placesAround, regionInfo } from './homepoint';
-import { h, localDay, searchTzOf } from './local';
+import { localDay, searchTzOf } from './local';
 import { Env, HttpError, now, parseJson } from './util';
 
 // ---------------------------------------------------------------- surf

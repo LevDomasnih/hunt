@@ -458,7 +458,7 @@ export function ordShelf(sup) {
   const pop = all.filter((x) => x.top && !usual.includes(x)).sort((a, b) => a.top - b.top);
   return { list: [...usual, ...pop].slice(0, 8), usual: usual.length };
 }
-export let ordGrp: Bag = {}; // supplier → the group the pills jumped to
+export const ordGrp: Bag = {}; // supplier → the group the pills jumped to
 export function ShopScreen({ arg }) {
   const { v, items, err } = useOrders(true);
   const [q, setQ] = useState('');

@@ -111,7 +111,6 @@ export function homePlanRows() {
   return { rows: out, alts, season };
 }
 export function HomePlan() {
-  const d = D();
   const { rows, alts, season } = homePlanRows();
   const rn = regionPack()?.name;
   const region = rn ? (LANG === 'ru' ? rn.ru : rn.en) : '';

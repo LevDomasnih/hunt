@@ -2,13 +2,12 @@
 import type { ComponentChildren } from 'preact';
 import type { Member } from '../../types/api.js';
 import { fxMount } from '../../fx.js';
-import { cssVar, themePref } from '../core/api.js';
-import { D, districtShort, homeMode } from '../core/data.js';
-import { TG, inTG, reduceMotion, tg } from '../core/env.js';
-import { shortTitle, tzNow } from '../core/format.js';
+import { homeMode } from '../core/data.js';
+import { inTG, reduceMotion, } from '../core/env.js';
+import { tzNow } from '../core/format.js';
 import { LANG, STR, pl, t, words } from '../core/i18n.js';
 import { back, go, sp } from '../core/routing.js';
-import { hap, openSheet } from '../core/store.js';
+import { hap, } from '../core/store.js';
 import { Av, ICONS, Icon } from './icons.js';
 import { html } from 'htm/preact';
 import { useEffect, useRef, useState } from 'preact/hooks';

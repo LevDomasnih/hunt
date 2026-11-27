@@ -1,7 +1,7 @@
 // Split from wave5.ts.
 import { daysUntil } from './deal';
 import { homeListing } from './homepoint';
-import { addDays, h, isDay, localDay, searchTzOf, txt } from './local';
+import { addDays, isDay, localDay, searchTzOf, txt } from './local';
 import { Env, HttpError, event, now, parseJson, rid } from './util';
 
 // ---------------------------------------------------------------- what next (renewal)

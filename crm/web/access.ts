@@ -8,7 +8,7 @@ import { inTG } from './app/core/env.js';
 import { channelName, firstName, fmtTime, fmtDM, dayKey } from './app/core/format.js';
 import { LANG, t, pl, L } from './app/core/i18n.js';
 import { go, sp, back, openLink } from './app/core/routing.js';
-import { S, emit, toast, hap, closeSheet } from './app/core/store.js';
+import { emit, toast, hap, closeSheet } from './app/core/store.js';
 import { copyText, skel, msgCard } from './app/home/helpers.js';
 import { Good } from './app/orders/orders.js';
 import { channelsOf, channelLink, contactName } from './app/screens/chats.js';
@@ -207,7 +207,7 @@ function Off({ a }) {
 const rcTitle = (r, wait) => (wait ? L('Осталось одно нажатие', 'One tap left') : r.data === 'kept' ? L('Hunt отключён', 'Hunt is disconnected') : L('Hunt ничего не видит', 'Hunt sees nothing'));
 const rcSub = (r, wait) => (wait ? L('Мы уже не читаем. Отключить бота в Telegram можешь только ты', 'We no longer read. Only you can remove the bot in Telegram') : r.data === 'kept' ? L('Данные остались, новых сообщений не будет', 'The data stays, nothing new comes in') : L('Переписки больше нет. Вернуться можно в любой момент, с нуля', 'Conversations are gone. You can come back any time, from zero'));
 /** The paper of the receipt: one line per thing with its state in words. slot = it comes out of the black slot (phone). */
-function RcptPaper({ a, r, wait, slot = false }) {
+function RcptPaper({ r, wait, slot = false }) {
   const ln = (title, sub, k, label) => html`<div class="ax-rl"><span class="grow"><b>${title}</b>${sub && html`<i>${sub}</i>`}</span><${St} k=${k}>${label}<//></div>`;
   const n = (k, ru, en) => pn(k, LANG === 'ru' ? ru : en).replace('{n}', k);
   const done = L('готово', 'done');

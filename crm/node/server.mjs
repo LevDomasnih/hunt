@@ -56,7 +56,7 @@ const ASSETS = {
 
 // ---- the Worker's environment
 const KEYS = ['TG_BOT_TOKEN', 'TG_WEBHOOK_SECRET', 'SETUP_KEY', 'LINK_SECRET', 'PUBLIC_URL', 'BOT_USERNAME', 'SOURCES_URL', 'SOURCES_KEY', 'SOURCES_ADMIN_KEY',
-  'OPEN_SIGNUP', 'CHAT_KEK', 'AI_ON', 'NO_FREE_TIER_LIMITS'];
+  'OPEN_SIGNUP', 'CHAT_KEK', 'AI_ON', 'NO_FREE_TIER_LIMITS', 'TG_API'];
 const env = { DB: d1, PHOTOS_KV: kv, ASSETS, NO_FREE_TIER_LIMITS: '1' };
 for (const k of KEYS) if (E[k] != null && E[k] !== '') env[k] = E[k];
 for (const k of ['TG_BOT_TOKEN', 'TG_WEBHOOK_SECRET', 'SETUP_KEY', 'LINK_SECRET', 'PUBLIC_URL', 'BOT_USERNAME']) if (!env[k]) console.warn(`warning: ${k} is not set`);
@@ -77,6 +77,7 @@ const server = createServer(async (req, res) => {
   try {
     const url = new URL(req.url ?? '/', BASE);
     const method = req.method ?? 'GET';
+    if (E.HUNT_TEST_SCHEDULED === '1' && url.pathname === '/__scheduled') { await tick(); res.writeHead(200, { 'content-type': 'text/plain' }); return res.end('ran'); } // like wrangler dev --test-scheduled
     if (method === 'GET' || method === 'HEAD') {
       const hit = staticFile(url.pathname); // static files first, as on Cloudflare
       if (hit) return send(res, staticResponse(hit, method, req.headers['if-none-match']));

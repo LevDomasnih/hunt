@@ -1,7 +1,7 @@
 import { api } from '../core/api.js';
 import { D, canVoteRole, photosOf } from '../core/data.js';
 import { fmtDM, fmtNum, fmtTime } from '../core/format.js';
-import { LANG, cap, t } from '../core/i18n.js';
+import { LANG, t } from '../core/i18n.js';
 import { go, openLink, sp } from '../core/routing.js';
 import { hap, toast } from '../core/store.js';
 import { Icon } from '../ui/icons.js';
