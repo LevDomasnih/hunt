@@ -2,6 +2,8 @@
 # /// script
 # requires-python = ">=3.10"
 # dependencies = ["mcp>=1.12,<3", "httpx>=0.27", "keyring>=24"]
+# [tool.uv]
+# exclude-newer = "2026-11-13T00:00:00Z"  # the same packages for everyone; move it forward on purpose
 # ///
 """Hunt channel bridges: one set of tools for any messenger.
 
@@ -16,10 +18,7 @@ from __future__ import annotations
 
 import contextlib
 import hashlib
-import json
-import os
 import re
-import tempfile
 import time
 from pathlib import Path
 from typing import Any
@@ -27,6 +26,7 @@ from urllib.parse import urlparse
 
 import httpx
 import keyring
+from huntshared import PACE as _PACE, config_dir, edit_json, private_dir, read_json
 
 try:  # mcp 1.x
     from mcp.server.fastmcp import FastMCP
@@ -44,7 +44,7 @@ SERVICE = "hunt-bridge"
 _TRANSPORT: httpx.AsyncBaseTransport | None = None  # tests
 NAME = re.compile(r"^[a-z][a-z0-9_-]{1,31}$")
 MAX_MEDIA = 25 * 1024 * 1024
-PACE = {"min_interval_s": 20, "new_chat_interval_s": 120, "max_new_chats_per_day": 20}
+PACE = dict(zip(("min_interval_s", "new_chat_interval_s", "max_new_chats_per_day"), _PACE["bridge"], strict=True))
 EXT = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp", "video/mp4": ".mp4", "application/pdf": ".pdf", "audio/ogg": ".ogg", "audio/mpeg": ".mp3"}
 
 mcp = FastMCP("hunt-bridge", instructions=(
@@ -56,38 +56,18 @@ mcp = FastMCP("hunt-bridge", instructions=(
 
 # ---------------------------------------------------------------- config
 
-def config_dir() -> Path:
-    return Path(os.environ.get("HUNT_CONFIG_DIR") or (Path.home() / ".config" / "hunt")).expanduser()
-
-
 def _file(name: str) -> Path:
     return config_dir() / name
 
 
 def _read(name: str) -> dict:
-    p = _file(name)
-    if not p.exists():
-        return {}
-    try:
-        return json.loads(p.read_text(encoding="utf-8") or "{}")
-    except ValueError:
-        raise ToolError(f"{p} is not valid JSON: fix or delete it.")
+    return read_json(_file(name), "Fix or delete it.")
 
 
-@contextlib.contextmanager
 def _edit(name: str):
-    d = config_dir()
-    d.mkdir(parents=True, exist_ok=True, mode=0o700)
-    with open(d / f".{name}.lock", "a+") as lf:
-        if fcntl:
-            fcntl.flock(lf, fcntl.LOCK_EX)
-        data = _read(name)
-        yield data
-        fd, tmp = tempfile.mkstemp(dir=d, prefix=f".{name}.")
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
-        os.chmod(tmp, 0o600)
-        os.replace(tmp, _file(name))
+    """with _edit(name) as data: … written back atomically, mode 600, under a lock."""
+    private_dir()
+    return edit_json(_file(name), config_dir() / f".{name}.lock", "Fix or delete it.")
 
 
 def _url(u: str) -> str:

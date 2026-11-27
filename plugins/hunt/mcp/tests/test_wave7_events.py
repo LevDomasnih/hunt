@@ -12,8 +12,8 @@ import httpx
 import pytest
 import yaml
 
-import hunt_core as hc
-from hunt_core import ToolError
+from huntcore import base, event_photos, events as events_mod
+from huntcore.base import ToolError
 
 PIL = pytest.importorskip("PIL")
 from PIL import Image, ImageDraw, ImageFilter, ImageFont  # noqa: E402
@@ -65,8 +65,8 @@ def body(req):
 @pytest.fixture
 def net(monkeypatch, isolated):
     fake = FakeNet()
-    monkeypatch.setattr(hc.owner_of("_TRANSPORT"), "_TRANSPORT", httpx.MockTransport(fake))
-    hc.update_config(lambda c: c.__setitem__("api_url", URL))
+    monkeypatch.setattr(base, "_TRANSPORT", httpx.MockTransport(fake))
+    base.update_config(lambda c: c.__setitem__("api_url", URL))
     isolated.set_password("hunt", URL, TOKEN)
     return fake
 
@@ -93,7 +93,7 @@ def test_events_upsert_posts_a_cleaned_batch(net):
              "photo_url": "https://cdn.example.com/a.jpg", "photo_credit": "La Brisa", "photo_source_url": "https://www.instagram.com/p/abc/",
              "photo_score": 0.8, "entry": "free", "age_min": 18, "vibe": "party", "crowd": "mixed", "tags": ["dj", "sunset", "dj"],
              "search_id": "s_1"}
-    out = run(hc.events_upsert([kecak(), party]))
+    out = run(events_mod.events_upsert([kecak(), party]))
     assert out["created"] == 2 and out["ids"] == ["ev_0", "ev_1"]
     req = net.last("POST", "/api/events")
     assert req.headers["authorization"] == f"Bearer {TOKEN}"
@@ -151,105 +151,105 @@ def test_events_upsert_validation(net):
     ]
     for events, msg in cases:
         with pytest.raises(ToolError, match=msg):
-            run(hc.events_upsert(events))
+            run(events_mod.events_upsert(events))
     assert len(net.requests) == n, "refused calls must not reach the CRM"
 
 
 def test_events_upsert_photo_without_reuse_and_errors_name_the_item(net):
     net.on("POST", "/api/events", {"created": 1, "updated": 0, "merged": 0, "skipped": [], "ids": ["ev_1"]})
-    run(hc.events_upsert([kecak(photo_url="https://cdn.example.com/a.jpg", photo_reuse=False)]))
+    run(events_mod.events_upsert([kecak(photo_url="https://cdn.example.com/a.jpg", photo_reuse=False)]))
     with pytest.raises(ToolError, match=r"events\[1\]\.category"):
-        run(hc.events_upsert([kecak(), kecak(category="nope")]))
+        run(events_mod.events_upsert([kecak(), kecak(category="nope")]))
 
 
 def test_events_get_params(net):
     net.on("GET", "/api/events", {"events": [{"id": "ev_1"}], "occurrences": []})
-    out = run(hc.events_get(" Bali ", city="Bukit", search_id="s_1", from_date="2026-11-20", to_date="2026-11-27",
+    out = run(events_mod.events_get(" Bali ", city="Bukit", search_id="s_1", from_date="2026-11-20", to_date="2026-11-27",
                             status="active", q="kecak"))
     assert out["events"][0]["id"] == "ev_1"
     p = net.last("GET", "/api/events").url.params
     assert (p["country"], p["city"], p["search_id"], p["from"], p["to"], p["status"], p["q"]) == \
         ("bali", "bukit", "s_1", "2026-11-20", "2026-11-27", "active", "kecak")
-    run(hc.events_get("kz"))
+    run(events_mod.events_get("kz"))
     p = net.last("GET", "/api/events").url.params
     assert dict(p) == {"country": "kz"}
     with pytest.raises(ToolError, match="YYYY-MM-DD"):
-        run(hc.events_get("bali", from_date="20.11.2026"))
+        run(events_mod.events_get("bali", from_date="20.11.2026"))
     with pytest.raises(ToolError, match="status"):
-        run(hc.events_get("bali", status="past"))
+        run(events_mod.events_get("bali", status="past"))
 
 
 def test_event_set(net):
     net.on("PUT", "/api/events/ev_7", lambda r: {"event": {"id": "ev_7", **body(r)}})
-    out = run(hc.event_set("ev_7", {"status": "cancelled", "photo_score": 0.7, "currency": "usd"}))
+    out = run(events_mod.event_set("ev_7", {"status": "cancelled", "photo_score": 0.7, "currency": "usd"}))
     assert out["event"]["status"] == "cancelled"
     assert body(net.last("PUT", "/api/events/ev_7")) == {"status": "cancelled", "photo_score": 0.7, "currency": "USD"}
     with pytest.raises(ToolError, match="non-empty"):
-        run(hc.event_set("ev_7", {}))
+        run(events_mod.event_set("ev_7", {}))
     with pytest.raises(ToolError, match="category"):
-        run(hc.event_set("ev_7", {"category": "casino"}))
+        run(events_mod.event_set("ev_7", {"category": "casino"}))
     with pytest.raises(ToolError, match="Invalid id"):
-        run(hc.event_set("../x", {"status": "hidden"}))
+        run(events_mod.event_set("../x", {"status": "hidden"}))
 
 
 def test_event_bookings_get(net):
     net.on("GET", "/api/event-bookings", {"bookings": [{"id": "eb_1", "status": "requested"}]})
-    assert run(hc.event_bookings_get(search_id="s_1", status="requested"))["bookings"][0]["id"] == "eb_1"
+    assert run(events_mod.event_bookings_get(search_id="s_1", status="requested"))["bookings"][0]["id"] == "eb_1"
     p = net.last("GET", "/api/event-bookings").url.params
     assert p["search_id"] == "s_1" and p["status"] == "requested"
-    run(hc.event_bookings_get())
+    run(events_mod.event_bookings_get())
     assert dict(net.last("GET", "/api/event-bookings").url.params) == {}
     with pytest.raises(ToolError, match="status"):
-        run(hc.event_bookings_get(status="paid"))
+        run(events_mod.event_bookings_get(status="paid"))
 
 
 def test_event_book_draft(net):
     net.on("POST", "/api/event-bookings/eb_1/draft",
            lambda r: {"draft": {"id": "d_1", "kind": "event_book"}, "booking": {"id": "eb_1", "status": "drafted"}}, 201)
-    out = run(hc.event_book_draft("eb_1", lang="id", reason="guest list for 3"))
+    out = run(events_mod.event_book_draft("eb_1", lang="id", reason="guest list for 3"))
     assert out["booking"]["status"] == "drafted"
     assert body(net.last("POST", "/api/event-bookings/eb_1/draft")) == {"lang": "id", "reason": "guest list for 3"}
-    run(hc.event_book_draft("eb_1", text="  Hi! Is there space for 3 on Friday?  ", lang="en", channel="instagram",
+    run(events_mod.event_book_draft("eb_1", text="  Hi! Is there space for 3 on Friday?  ", lang="en", channel="instagram",
                             address="labrisabali"))
     assert body(net.last("POST", "/api/event-bookings/eb_1/draft")) == {
         "text": "Hi! Is there space for 3 on Friday?", "lang": "en", "channel": "instagram", "address": "labrisabali"}
-    run(hc.event_book_draft("eb_1", text="Bonjour, il reste de la place ?", lang="fr"))
+    run(events_mod.event_book_draft("eb_1", text="Bonjour, il reste de la place ?", lang="fr"))
     n = len(net.requests)
     with pytest.raises(ToolError, match="template"):
-        run(hc.event_book_draft("eb_1", lang="fr"))
+        run(events_mod.event_book_draft("eb_1", lang="fr"))
     with pytest.raises(ToolError, match="2-letter"):
-        run(hc.event_book_draft("eb_1", lang="english"))
+        run(events_mod.event_book_draft("eb_1", lang="english"))
     with pytest.raises(ToolError, match="channel"):
-        run(hc.event_book_draft("eb_1", channel="web"))
+        run(events_mod.event_book_draft("eb_1", channel="web"))
     with pytest.raises(ToolError, match="empty"):
-        run(hc.event_book_draft("eb_1", text="   "))
+        run(events_mod.event_book_draft("eb_1", text="   "))
     with pytest.raises(ToolError, match="Refused"):
-        run(hc.event_book_draft("eb_1", text="my card 4111 1111 1111 1111"))
+        run(events_mod.event_book_draft("eb_1", text="my card 4111 1111 1111 1111"))
     assert len(net.requests) == n
 
 
 def test_event_booking_set(net):
     net.on("PUT", "/api/event-bookings/eb_1", lambda r: {"booking": {"id": "eb_1", **body(r)}})
-    assert run(hc.event_booking_set("eb_1", "booked", note="guest list under Alex"))["booking"]["status"] == "booked"
+    assert run(events_mod.event_booking_set("eb_1", "booked", note="guest list under Alex"))["booking"]["status"] == "booked"
     assert body(net.last("PUT", "/api/event-bookings/eb_1")) == {"status": "booked", "note": "guest list under Alex"}
-    run(hc.event_booking_set("eb_1", "declined"))
+    run(events_mod.event_booking_set("eb_1", "declined"))
     assert body(net.last("PUT", "/api/event-bookings/eb_1")) == {"status": "declined"}
     for bad in ("drafted", "requested", "paid"):
         with pytest.raises(ToolError, match="status"):
-            run(hc.event_booking_set("eb_1", bad))
+            run(events_mod.event_booking_set("eb_1", bad))
     with pytest.raises(ToolError, match="Refused"):
-        run(hc.event_booking_set("eb_1", "booked", note="passport 4510123456"))
+        run(events_mod.event_booking_set("eb_1", "booked", note="passport 4510123456"))
 
 
 def test_docstrings_teach_the_rules():
-    doc = hc.events_upsert.__doc__ or ""
+    doc = events_mod.events_upsert.__doc__ or ""
     for s in ("READ ONLY", "Never join", "never post", "60 min", "never invent", "≤ 6 months", "event_photo_check",
               "photo_reuse=false", "bulk-scrape", "young"):
         assert s in doc, s
-    d = hc.event_book_draft.__doc__ or ""
+    d = events_mod.event_book_draft.__doc__ or ""
     assert "NEVER pay" in d and "on site" in d and "language" in d
-    assert "event_book_cancel" in (hc.event_bookings_get.__doc__ or "") and "event_want" in (hc.event_bookings_get.__doc__ or "")
-    assert "HEURISTIC" in (hc.event_photo_check.__doc__ or "")
+    assert "event_book_cancel" in (events_mod.event_bookings_get.__doc__ or "") and "event_want" in (events_mod.event_bookings_get.__doc__ or "")
+    assert "HEURISTIC" in (event_photos.event_photo_check.__doc__ or "")
 
 
 # ---------------------------------------------------------------- photo quality gate
@@ -274,10 +274,10 @@ def save(im, tmp_path, name):
 
 
 def test_photo_sharp_scene_passes(tmp_path):
-    out = run(hc.event_photo_check(save(scene(), tmp_path, "sharp.jpg")))
+    out = run(event_photos.event_photo_check(save(scene(), tmp_path, "sharp.jpg")))
     assert out["ok"], out["reasons"]
     assert out["short_side"] == 1000 and out["width"] == 1600 and out["score"] >= 0.5
-    assert out["sharpness"] >= hc.PHOTO_SHARP_MIN and out["text_area"] < 0.2
+    assert out["sharpness"] >= event_photos.PHOTO_SHARP_MIN and out["text_area"] < 0.2
     c = out["crop"]
     assert c["w"] * 9 == pytest.approx(c["h"] * 16, abs=16) and c["x"] >= 0 and c["y"] >= 0
     assert c["x"] + c["w"] <= 1600 and c["y"] + c["h"] <= 1000
@@ -286,20 +286,20 @@ def test_photo_sharp_scene_passes(tmp_path):
 
 
 def test_photo_blurred_fails(tmp_path):
-    out = run(hc.event_photo_check(save(scene().filter(ImageFilter.GaussianBlur(8)), tmp_path, "blur.jpg")))
-    assert not out["ok"] and out["sharpness"] < hc.PHOTO_SHARP_MIN
+    out = run(event_photos.event_photo_check(save(scene().filter(ImageFilter.GaussianBlur(8)), tmp_path, "blur.jpg")))
+    assert not out["ok"] and out["sharpness"] < event_photos.PHOTO_SHARP_MIN
     assert any("blurry" in r for r in out["reasons"]) and out["score"] <= 0.49
 
 
 def test_photo_dark_fails(tmp_path):
     dark = scene().point(lambda v: v // 10)
-    out = run(hc.event_photo_check(save(dark, tmp_path, "dark.jpg")))
+    out = run(event_photos.event_photo_check(save(dark, tmp_path, "dark.jpg")))
     assert not out["ok"] and any("too dark" in r for r in out["reasons"])
-    assert out["exposure"]["mean"] < hc.PHOTO_MEAN_MIN
+    assert out["exposure"]["mean"] < event_photos.PHOTO_MEAN_MIN
 
 
 def test_photo_blown_fails(tmp_path):
-    out = run(hc.event_photo_check(save(Image.new("RGB", (1600, 1000), (252, 252, 252)), tmp_path, "white.png")))
+    out = run(event_photos.event_photo_check(save(Image.new("RGB", (1600, 1000), (252, 252, 252)), tmp_path, "white.png")))
     assert not out["ok"] and any("blown" in r for r in out["reasons"])
 
 
@@ -312,20 +312,20 @@ def test_photo_text_heavy_flyer_fails(tmp_path):
         font = None
     for y in range(20, 950, 55):
         d.text((30, y), "PARTY FRIDAY 22:00 DJ LINEUP FREE ENTRY BEFORE 23 GUEST LIST", fill=(10, 10, 10), font=font)
-    out = run(hc.event_photo_check(save(im, tmp_path, "flyer.png")))
+    out = run(event_photos.event_photo_check(save(im, tmp_path, "flyer.png")))
     assert out["text_area"] >= 0.2 and not out["ok"]
     assert any("text-heavy" in r for r in out["reasons"])
 
 
 def test_photo_small_fails(tmp_path):
-    out = run(hc.event_photo_check(save(scene(800, 500), tmp_path, "small.jpg")))
+    out = run(event_photos.event_photo_check(save(scene(800, 500), tmp_path, "small.jpg")))
     assert not out["ok"] and out["short_side"] == 500 and any("too small" in r for r in out["reasons"])
 
 
 def test_photo_crop_follows_the_subject(tmp_path):
     im = Image.new("RGB", (2400, 1000), (128, 140, 150))
     im.paste(scene(500, 1000, seed=3), (1850, 0))  # all the detail on the right
-    out = run(hc.event_photo_check(save(im, tmp_path, "right.jpg")))
+    out = run(event_photos.event_photo_check(save(im, tmp_path, "right.jpg")))
     c = out["crop"]
     assert c["x"] + c["w"] / 2 > 1200, c
 
@@ -335,25 +335,25 @@ def test_photo_url_download(net, tmp_path):
     data = Path(p).read_bytes()
     net.on("GET", "/img/a.jpg", httpx.Response(200, content=data, headers={"content-type": "image/jpeg"}))
     net.on("GET", "/post", httpx.Response(200, content=b"<html>", headers={"content-type": "text/html"}))
-    out = run(hc.event_photo_check("https://cdn.example.com/img/a.jpg"))
+    out = run(event_photos.event_photo_check("https://cdn.example.com/img/a.jpg"))
     assert out["ok"] and out["bytes"] == len(data) and out["source"] == "https://cdn.example.com/img/a.jpg"
     with pytest.raises(ToolError, match="Not an image"):
-        run(hc.event_photo_check("https://cdn.example.com/post"))
+        run(event_photos.event_photo_check("https://cdn.example.com/post"))
     for bad in ("http://cdn.example.com/a.jpg", "https://localhost/a.jpg", "https://192.168.1.2/a.jpg", "ftp://x.y/a.jpg"):
         with pytest.raises(ToolError, match="https"):
-            run(hc.event_photo_check(bad))
+            run(event_photos.event_photo_check(bad))
     with pytest.raises(ToolError, match="No such file"):
-        run(hc.event_photo_check(str(tmp_path / "missing.jpg")))
+        run(event_photos.event_photo_check(str(tmp_path / "missing.jpg")))
     (tmp_path / "junk.jpg").write_bytes(b"not an image")
     with pytest.raises(ToolError, match="Cannot read"):
-        run(hc.event_photo_check(str(tmp_path / "junk.jpg")))
+        run(event_photos.event_photo_check(str(tmp_path / "junk.jpg")))
 
 
 def test_photo_size_cap(net, monkeypatch):
-    monkeypatch.setattr(hc.owner_of("PHOTO_MAX_BYTES"), "PHOTO_MAX_BYTES", 1000)
+    monkeypatch.setattr(event_photos, "PHOTO_MAX_BYTES", 1000)
     net.on("GET", "/big.jpg", httpx.Response(200, content=b"x" * 5000, headers={"content-type": "image/jpeg"}))
     with pytest.raises(ToolError, match="larger"):
-        run(hc.event_photo_check("https://cdn.example.com/big.jpg"))
+        run(event_photos.event_photo_check("https://cdn.example.com/big.jpg"))
 
 
 def flyer(w=1600, h=1000, lines=18, bg=(250, 235, 40)):
@@ -385,57 +385,57 @@ def poster(w=1000, h=1250):
 
 
 def test_photo_min_short_side_900(tmp_path):
-    out = run(hc.event_photo_check(save(scene(1400, 900), tmp_path, "s900.jpg")))
+    out = run(event_photos.event_photo_check(save(scene(1400, 900), tmp_path, "s900.jpg")))
     assert out["ok"] and out["kind"] == "photo", out["reasons"]
-    out = run(hc.event_photo_check(save(scene(1300, 850), tmp_path, "s850.jpg")))
+    out = run(event_photos.event_photo_check(save(scene(1300, 850), tmp_path, "s850.jpg")))
     assert not out["ok"] and any("< 900" in r for r in out["reasons"])
 
 
 def test_poster_needs_organizer_own_and_little_text(tmp_path):
     p = save(flyer(), tmp_path, "flyer.png")
-    out = run(hc.event_photo_check(p))
+    out = run(event_photos.event_photo_check(p))
     assert out["kind"] == "poster" and not out["ok"] and any("organizer_own" in r for r in out["reasons"])
-    out = run(hc.event_photo_check(p, organizer_own=True))
-    assert not out["ok"] and out["text_area"] >= hc.POSTER_TEXT_MAX and any("max 45%" in r for r in out["reasons"])
-    six = run(hc.event_photo_check(save(flyer(lines=6), tmp_path, "six.png"), organizer_own=True))
-    assert six["ok"] and six["kind"] == "poster" and hc.PHOTO_TEXT_MAX <= six["text_area"] < hc.POSTER_TEXT_MAX
+    out = run(event_photos.event_photo_check(p, organizer_own=True))
+    assert not out["ok"] and out["text_area"] >= event_photos.POSTER_TEXT_MAX and any("max 45%" in r for r in out["reasons"])
+    six = run(event_photos.event_photo_check(save(flyer(lines=6), tmp_path, "six.png"), organizer_own=True))
+    assert six["ok"] and six["kind"] == "poster" and event_photos.PHOTO_TEXT_MAX <= six["text_area"] < event_photos.POSTER_TEXT_MAX
     q = save(poster(), tmp_path, "poster.jpg")
-    out = run(hc.event_photo_check(q, organizer_own=True, kind="poster"))
-    assert out["ok"] and out["kind"] == "poster" and 0.5 <= out["score"] <= hc.POSTER_FACTOR, out
+    out = run(event_photos.event_photo_check(q, organizer_own=True, kind="poster"))
+    assert out["ok"] and out["kind"] == "poster" and 0.5 <= out["score"] <= event_photos.POSTER_FACTOR, out
     small = save(poster(560, 700), tmp_path, "poster_small.jpg")
-    out = run(hc.event_photo_check(small, organizer_own=True, kind="poster"))
+    out = run(event_photos.event_photo_check(small, organizer_own=True, kind="poster"))
     assert not out["ok"] and any("< 700" in r for r in out["reasons"])
     blurred = save(poster().filter(ImageFilter.GaussianBlur(8)), tmp_path, "poster_blur.jpg")
-    assert not run(hc.event_photo_check(blurred, organizer_own=True, kind="poster"))["ok"]
+    assert not run(event_photos.event_photo_check(blurred, organizer_own=True, kind="poster"))["ok"]
     with pytest.raises(ToolError, match="kind"):
-        run(hc.event_photo_check(q, kind="banner"))
+        run(event_photos.event_photo_check(q, kind="banner"))
 
 
 def test_pick_prefers_real_photos(tmp_path):
     ph = save(scene(1400, 950, seed=4), tmp_path, "atmos.jpg")
     po = save(flyer(lines=6), tmp_path, "poster.png")  # ~28% text: a passing organizer poster
     bad = save(scene().filter(ImageFilter.GaussianBlur(8)), tmp_path, "blur.jpg")
-    out = run(hc.event_photo_pick([po, bad, ph], organizer_own=True))
+    out = run(event_photos.event_photo_pick([po, bad, ph], organizer_own=True))
     assert out["best"]["path"] == ph and out["best"]["kind"] == "photo"
     assert [r["path"] for r in out["ranked"]][-1] == bad
-    out = run(hc.event_photo_pick([po, bad], organizer_own=True))
+    out = run(event_photos.event_photo_pick([po, bad], organizer_own=True))
     assert out["best"]["kind"] == "poster"
-    assert run(hc.event_photo_pick([bad, str(tmp_path / "nope.jpg")]))["best"] is None
+    assert run(event_photos.event_photo_pick([bad, str(tmp_path / "nope.jpg")]))["best"] is None
 
 
 def test_prepare_resizes_to_1600_jpeg(tmp_path):
     big = scene(3200, 2000)
-    jpg = hc.prepare_event_photo(big)
+    jpg = event_photos.prepare_event_photo(big)
     im = Image.open(__import__("io").BytesIO(jpg))
-    assert im.format == "JPEG" and max(im.size) == 1600 and len(jpg) <= hc.EVENT_UPLOAD_MAX
+    assert im.format == "JPEG" and max(im.size) == 1600 and len(jpg) <= event_photos.EVENT_UPLOAD_MAX
     rgba = Image.new("RGBA", (800, 900), (10, 200, 30, 128))
-    assert Image.open(__import__("io").BytesIO(hc.prepare_event_photo(rgba))).mode == "RGB"
+    assert Image.open(__import__("io").BytesIO(event_photos.prepare_event_photo(rgba))).mode == "RGB"
 
 
 def test_event_photo_upload_multipart_and_dry_run(net, tmp_path):
     p = save(scene(2400, 1500), tmp_path, "tg.jpg")
     net.on("POST", "/api/events/ev_abc123/photo", lambda r: httpx.Response(201, json={"event": {"id": "ev_abc123"}, "key": "e/ev_abc123/x"}))
-    out = run(hc.event_photo_upload("ev_abc123", p, "Savaya Bali", "https://t.me/balichatparties/83340"))
+    out = run(event_photos.event_photo_upload("ev_abc123", p, "Savaya Bali", "https://t.me/balichatparties/83340"))
     assert out["key"] == "e/ev_abc123/x"
     req = net.last("POST", "/api/events/ev_abc123/photo")
     assert req.headers["content-type"].startswith("multipart/form-data")
@@ -443,7 +443,7 @@ def test_event_photo_upload_multipart_and_dry_run(net, tmp_path):
     assert b'name="credit"' in raw and b"Savaya Bali" in raw and b'name="source_url"' in raw and b'name="score"' in raw
     assert b'filename="event.jpg"' in raw and b"image/jpeg" in raw
     n = len(net.requests)
-    d = run(hc.event_photo_upload("ev_abc123", p, "Savaya Bali", "https://t.me/balichatparties/83340", dry_run=True,
+    d = run(event_photos.event_photo_upload("ev_abc123", p, "Savaya Bali", "https://t.me/balichatparties/83340", dry_run=True,
                                   out_path=str(tmp_path / "out" / "a.jpg")))
     assert d["dry_run"] and len(net.requests) == n and Path(d["out_path"]).is_file()
     assert max(Image.open(d["out_path"]).size) == 1600
@@ -451,9 +451,9 @@ def test_event_photo_upload_multipart_and_dry_run(net, tmp_path):
     for args, msg in (((blur, "X", "https://t.me/a/1"), "quality gate"), ((p, "", "https://t.me/a/1"), "credit"),
                       ((p, "X", "http://t.me/a/1"), "source_url"), ((p, "паспорт 4510 123456", "https://t.me/a/1"), "Refused")):
         with pytest.raises(ToolError, match=msg):
-            run(hc.event_photo_upload("ev_abc123", *args))
+            run(event_photos.event_photo_upload("ev_abc123", *args))
     with pytest.raises(ToolError, match="event_id"):
-        run(hc.event_photo_upload("../x", p, "X", "https://t.me/a/1"))
+        run(event_photos.event_photo_upload("../x", p, "X", "https://t.me/a/1"))
     assert len(net.requests) == n
 
 
@@ -465,25 +465,25 @@ def test_event_photo_fetch_og_image(net, tmp_path):
             '</head></html>')
     net.on("GET", "/events/frost/", httpx.Response(200, text=page, headers={"content-type": "text/html; charset=utf-8"}))
     net.on("GET", "/img/frost.jpg", httpx.Response(200, content=img, headers={"content-type": "image/jpeg"}))
-    out = run(hc.event_photo_fetch("https://www.example.com/events/frost/", str(tmp_path / "c")))
+    out = run(event_photos.event_photo_fetch("https://www.example.com/events/frost/", str(tmp_path / "c")))
     assert out["title"] == "Frost Moon Beach Party" and out["found"] == 1  # the http:// twitter image is dropped
     f = out["files"][0]
     assert f["image_url"] == "https://www.example.com/img/frost.jpg" and f["check"]["ok"] and Path(f["path"]).is_file()
     # a redirect to a private address is refused hop by hop
     net.on("GET", "/go", httpx.Response(302, headers={"location": "https://127.0.0.1/admin"}))
     with pytest.raises(ToolError, match="public https"):
-        run(hc.event_photo_fetch("https://www.example.com/go", str(tmp_path / "c")))
+        run(event_photos.event_photo_fetch("https://www.example.com/go", str(tmp_path / "c")))
     for bad in ("http://www.example.com/", "https://10.0.0.5/", "https://localhost/x", "https://[::1]/", "https://169.254.169.254/latest"):
         with pytest.raises(ToolError, match="public https"):
-            run(hc.event_photo_fetch(bad, str(tmp_path / "c")))
+            run(event_photos.event_photo_fetch(bad, str(tmp_path / "c")))
     with pytest.raises(ToolError, match="tg_post_media"):
-        run(hc.event_photo_fetch("https://t.me/balichatparties/83340", str(tmp_path / "c")))
+        run(event_photos.event_photo_fetch("https://t.me/balichatparties/83340", str(tmp_path / "c")))
 
 
 def test_public_host_rejects_private_ips(monkeypatch):
-    monkeypatch.setattr(hc.owner_of("_TRANSPORT"), "_TRANSPORT", None)
-    assert not hc._public_host("127.0.0.1") and not hc._public_host("100.64.1.1") and not hc._public_host("fd00::1")
-    assert hc._public_host("8.8.8.8")
+    monkeypatch.setattr(base, "_TRANSPORT", None)
+    assert not event_photos._public_host("127.0.0.1") and not event_photos._public_host("100.64.1.1") and not event_photos._public_host("fd00::1")
+    assert event_photos._public_host("8.8.8.8")
 
 
 # ---------------------------------------------------------------- the real packs
@@ -527,7 +527,7 @@ def test_generic_effects_cover_the_contract_defaults():
     shader = lambda k: eff[k]["shader"] if isinstance(eff[k], dict) else eff[k]  # noqa: E731
     assert shader("kecak") == "embers" and shader("sea") == "caustics" and eff["sea"]["mix"] == 0.35
     assert shader("bar") == "neon" and shader("padel") == "floodlight" and shader("workshop") == "none"
-    assert set(hc.EVENT_TOPICS) - {"sunset_session", "volleyball", "run_club", "quiz", "karaoke", "open_mic",
+    assert set(events_mod.EVENT_TOPICS) - {"sunset_session", "volleyball", "run_club", "quiz", "karaoke", "open_mic",
                                    "language_exchange", "dating"} <= set(eff)
 
 

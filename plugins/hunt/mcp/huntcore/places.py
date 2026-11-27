@@ -15,7 +15,7 @@ from typing import Any
 from urllib.parse import parse_qs, quote, unquote, unquote_plus, urlparse
 import httpx
 from huntcore.base import ToolError
-from huntcore import base as _base, packs as _packs
+from huntcore import base as _base, packs as _packs, util as _util
 # ---------------------------------------------------------------- wave 3: places near (travel times)
 
 VALHALLA_URL = "https://valhalla1.openstreetmap.de/route"
@@ -177,7 +177,7 @@ async def region_districts(path: str, lat: float | None = None, lng: float | Non
     if len(parts) >= 2:
         city = {k: v for k, v in areas.items() if isinstance(v, dict) and v.get("city") == parts[1]}
         areas = city or areas
-    out: dict[str, Any] = {"areas": _packs.jsonable(areas)}
+    out: dict[str, Any] = {"areas": _util.jsonable(areas)}
     if lat is not None and lng is not None:
         g = cdir / "districts.geojson"
         out["area"] = area_of_point(json.loads(g.read_text(encoding="utf-8")), lat, lng) if g.is_file() else None
