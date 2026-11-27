@@ -1,4 +1,3 @@
-// Split from app.js (wave 11): see the section comment below.
 import { api } from '../core/api.js';
 import { D, canVoteRole, memberById } from '../core/data.js';
 import { fmtNum, money } from '../core/format.js';
@@ -32,7 +31,7 @@ export async function saveRooms(rooms, othersEqual) {
   const d = D();
   const r = await api('/app/api/rooms', { search_id: d.search.id, rooms: rooms ? { rooms, others_equal: othersEqual } : null });
   d.search.rooms = r.rooms;
-  d.money = r.money;
+  D().money = r.money;
   emit();
 }
 export function Split() {
@@ -117,7 +116,7 @@ export function MoneyModeSheet() {
   const mode = d.money?.mode ?? 'split';
   async function set(m) {
     if (m === mode) return closeSheet();
-    try { const r = await api('/app/api/money-mode', { search_id: d.search.id, mode: m }); d.money = r.money; d.search.money_mode = m; hap.ok(); toast(t('mm_saved')); closeSheet(); emit(); }
+    try { const r = await api('/app/api/money-mode', { search_id: d.search.id, mode: m }); D().money = r.money; D().search.money_mode = m; hap.ok(); toast(t('mm_saved')); closeSheet(); emit(); }
     catch { toast(t('err_generic')); }
   }
   return html`<h2>${t('mm_settings')}</h2>

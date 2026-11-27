@@ -1,4 +1,3 @@
-// Split from app.js (wave 11): see the section comment below.
 import { api, cssVar } from '../core/api.js';
 import { D, canVoteRole, subRegion } from '../core/data.js';
 import { reduceMotion } from '../core/env.js';

@@ -1,4 +1,4 @@
-// Split from app.js (wave 11): see the section comment below.
+import type { HouseContact } from '../../types/api.js';
 import { settingsRow } from '../../access.js';
 import { AgentTokenSheet, agentSettingsRow } from '../../agent.js';
 import { Sessions } from '../../desk.js';
@@ -8,7 +8,7 @@ import { api, linkKey, load, setThemePref, themePref } from '../core/api.js';
 import { D, agentAwayHours, canVoteRole, listingById, markStyle, memberById, viewingsByDay, votersN } from '../core/data.js';
 import { TG, inTG, reduceMotion, tg } from '../core/env.js';
 import { LOC, SYM, asDate, channelName, dfmt, firstName, fmtDM, fmtTime, initial, money } from '../core/format.js';
-import { LANG, STR, applyLang, cap, pl, t } from '../core/i18n.js';
+import { LANG, STR, applyLang, cap, pl, t, words } from '../core/i18n.js';
 import { go, openLink, sp } from '../core/routing.js';
 import { S, closeSheet, emit, hap, openSheet, toast, useStore } from '../core/store.js';
 import { BikeSheet } from '../home/bikes.js';
@@ -38,7 +38,7 @@ import { html } from 'htm/preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 
 // ---------------------------------------------------------------- wave 10 · Заказы (mockups design/mockup-v5: A shop, B item, C receipt, D check, E status, H services)
-Object.assign(STR.ru, {
+Object.assign(STR.ru, words({
   or_title: 'Заказы', or_fruit: 'Фрукты', or_fish: 'Рыба', or_services: 'Услуги', or_q_fruit: 'Что привезти?', or_q_fish: 'Что на ужин?', or_q_other: 'Что привезти?', or_w_fruit: 'Рынок', or_w_fish: 'Рыба', or_w_other: 'Рынок',
   or_again: 'Как в прошлый раз', or_again_st: 'как в прошлый раз', or_usual: 'ваше обычное', or_usual_pop: 'ваше обычное и популярное', or_pop: 'популярное', or_search: 'Найти в прайсе', or_search_n: (n) => `${n} ${pl(n, 'позиция', 'позиции', 'позиций')} в прайсе`,
   or_none_found: 'Такого в прайсе нет. Можно спросить в пометке к заказу', or_items: (n) => `${n} ${pl(n, 'товар', 'товара', 'товаров')}`, or_collect: 'Собрать', or_check: 'Проверить', or_ask: 'цену узнаём', or_by_req: 'по запросу', or_unsure: 'уточнить', or_prices_at: 'цены от {d}',
@@ -66,8 +66,8 @@ Object.assign(STR.ru, {
   or_rg_paid_cash: 'заплатили наличными', or_rg_paid_transfer: 'заплатили переводом', or_rg_paid_card: 'заплатили картой', or_rg_paid: 'оплатили', or_rg_final: 'итог с доставкой',
   or_rg_from: 'ждали от {x}', or_rg_to: 'до {x}', or_rg_scale: 'ждали от {a} до {b}, вышло {x}', or_rg_in: 'в пределах ожидания', or_rg_more: 'больше ожидания на {x}', or_rg_less: 'меньше ожидания на {x}',
   or_rg_learnt: 'Hunt запомнил', or_rg_usual: 'у этого поставщика обычно {p} к прайсу', or_rg_usual0: 'у этого поставщика обычно ровно по прайсу', or_rg_this: 'в этот раз прайс был {x}',
-});
-Object.assign(STR.en, {
+}));
+Object.assign(STR.en, words({
   or_title: 'Orders', or_fruit: 'Fruit', or_fish: 'Fish', or_services: 'Services', or_q_fruit: 'What to bring?', or_q_fish: 'What’s for dinner?', or_q_other: 'What to bring?', or_w_fruit: 'Market', or_w_fish: 'Fish', or_w_other: 'Market',
   or_again: 'Same as last time', or_again_st: 'same as last time', or_usual: 'your usual', or_usual_pop: 'your usual and popular', or_pop: 'popular', or_search: 'Search the price list', or_search_n: (n) => `${n} ${pl(n, 'item', 'items')} on the list`,
   or_none_found: 'Not on the list. You can ask in the order note', or_items: (n) => `${n} ${pl(n, 'item', 'items')}`, or_collect: 'Review', or_check: 'Check', or_ask: 'asking the price', or_by_req: 'on request', or_unsure: 'to confirm', or_prices_at: 'prices of {d}',
@@ -95,7 +95,7 @@ Object.assign(STR.en, {
   or_rg_paid_cash: 'paid in cash', or_rg_paid_transfer: 'paid by transfer', or_rg_paid_card: 'paid by card', or_rg_paid: 'paid', or_rg_final: 'total with delivery',
   or_rg_from: 'expected from {x}', or_rg_to: 'to {x}', or_rg_scale: 'expected {a} to {b}, it came to {x}', or_rg_in: 'within what we expected', or_rg_more: '{x} more than expected', or_rg_less: '{x} less than expected',
   or_rg_learnt: 'Hunt remembers', or_rg_usual: 'this supplier usually comes to {p} vs the list', or_rg_usual0: 'this supplier usually matches the list', or_rg_this: 'this time the list said {x}',
-});
+}));
 Object.assign(ICONS, {
   basket: '<path d="m15 11-1 9"/><path d="m19 11-4-7"/><path d="M2 11h20"/><path d="m3.5 11 1.6 7.4a2 2 0 0 0 2 1.6h9.8a2 2 0 0 0 2-1.6l1.7-7.4"/><path d="M4.5 15.5h15"/><path d="m5 11 4-7"/><path d="m9 11 1 9"/>',
   repeat: '<path d="m2 9 3-3 3 3"/><path d="M13 18H7a2 2 0 0 1-2-2V6"/><path d="m22 15-3 3-3-3"/><path d="M11 6h6a2 2 0 0 1 2 2v10"/>',
@@ -791,7 +791,7 @@ export function OrderReceiptOf({ id }) {
 
 // ---- sets ("Наборы", approved design/mockup-v5/sets-*): a saved basket of one supplier; "В корзину" adds it to the basket,
 // an optional reminder in Telegram (the order never goes by itself). Clearing the basket asks first and can be undone.
-Object.assign(STR.ru, {
+Object.assign(STR.ru, words({
   st_title: 'Наборы', st_save: 'Сохранить как набор', st_name: 'Название набора', st_clear_name: 'Стереть название', st_taken: 'Такой набор уже есть. Придумайте другое название',
   st_long: 'Не длиннее 40 символов', st_need_name: 'Как назовём набор?', st_now: 'сейчас {x}', st_remind: 'Напоминать', st_r_none: 'Нет', st_r_weekly: 'Каждую неделю', st_r_biweekly: 'Раз в 2 недели',
   st_later: 'Можно включить потом. Hunt будет писать в Telegram, а заказ отправите сами', st_at: 'Во сколько', st_days: 'Дни недели',
@@ -803,8 +803,8 @@ Object.assign(STR.ru, {
   st_undo_hint: 'Если передумаете, можно вернуть', st_keep: 'Оставить', st_again: 'Повторить', st_empty_again: 'Корзина снова пустая', st_empty_again_s: 'всё из неё уехало в этот заказ',
   st_rcpt_row: 'Чек, {n} · расход в Деньгах', st_rep_w: 'по {d}', st_rep_b: 'раз в 2 недели, {d}', st_w_empty: 'Пусто',
   st_def_fruit: 'Фрукты на неделю', st_def_fish: 'Рыба на ужин', st_def_other: '{s}: как обычно',
-});
-Object.assign(STR.en, {
+}));
+Object.assign(STR.en, words({
   st_title: 'Sets', st_save: 'Save as a set', st_name: 'Set name', st_clear_name: 'Clear the name', st_taken: 'There is a set with this name. Pick another one',
   st_long: 'Up to 40 characters', st_need_name: 'Name the set', st_now: 'now {x}', st_remind: 'Remind', st_r_none: 'No', st_r_weekly: 'Every week', st_r_biweekly: 'Every 2 weeks',
   st_later: 'You can turn it on later. Hunt writes in Telegram, you send the order yourselves', st_at: 'At', st_days: 'Weekdays',
@@ -816,7 +816,7 @@ Object.assign(STR.en, {
   st_undo_hint: 'Changed your mind? You can bring it back', st_keep: 'Keep', st_again: 'Repeat', st_empty_again: 'The basket is empty again', st_empty_again_s: 'everything went into this order',
   st_rcpt_row: 'Receipt, {n} · an expense in Money', st_rep_w: 'every {d}', st_rep_b: 'every 2 weeks, {d}', st_w_empty: 'Empty',
   st_def_fruit: 'Fruit for the week', st_def_fish: 'Fish for dinner', st_def_other: '{s}, the usual',
-});
+}));
 Object.assign(ICONS, {
   'bookmark-plus': '<path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/><path d="M12 7v6"/><path d="M15 10H9"/>',
   'alarm-clock': '<circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2"/><path d="M5 3 2 6"/><path d="m22 6-3-3"/><path d="M6.38 18.7 4 21"/><path d="M17.64 18.67 20 21"/>',
@@ -1066,7 +1066,7 @@ export function ServicesScreen() {
   const d = D();
   useOrders();
   const sup = new Set((OR.v?.suppliers ?? []).map((s) => s.dir_entry_id).filter(Boolean));
-  const list = [...(d.house_contacts ?? []).filter(svOk), ...(d.directory ?? []).filter((e) => !sup.has(e.id) && SV_RE.test(`${e.name} ${e.subtitle ?? ''}`)).map((e) => ({ ...e, role: 'dir' }))];
+  const list: HouseContact[] = [...(d.house_contacts ?? []).filter(svOk), ...(d.directory ?? []).filter((e) => !sup.has(e.id) && SV_RE.test(`${e.name} ${e.subtitle ?? ''}`)).map((e) => ({ ...e, role: 'dir' }))];
   const ORD = { cleaning: 0, pool: 1, garden: 2 };
   list.sort((a, b) => (ORD[a.role] ?? 5) - (ORD[b.role] ?? 5));
   const [sel, setSel] = useState(null);

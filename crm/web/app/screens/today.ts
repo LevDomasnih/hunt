@@ -1,4 +1,3 @@
-// Split from app.js (wave 11): see the section comment below.
 import { D, canVoteRole, districtName, fmtScore, listingById, memberById, photosOf, priceText, sceneStyle, shortLabel, votesFor } from '../core/data.js';
 import { inTG } from '../core/env.js';
 import { agoLabel, channelName, firstName, fmtDayMonth, fmtTime, money, relIn, shortTitle, todayTitle, tzNow, whenLabel } from '../core/format.js';

@@ -1,4 +1,4 @@
-// Split from app.js (wave 11): see the section comment below.
+import type { Thread } from '../../types/api.js';
 import { DraftScreen } from '../../access.js';
 import { api, refresh } from '../core/api.js';
 import { D, listingById, photosOf, priceText, shortLabel } from '../core/data.js';
@@ -128,7 +128,7 @@ export function HomeRow({ th, arch }) {
 export function HomeChats({ arch }) {
   const d = D(), dr = new Set((d.drafts ?? []).map((x) => x.contact_id));
   const wait = (th) => th.state === 'waiting_us' || dr.has(th.contact_id);
-  const groups = arch
+  const groups: [string, Thread[]][] = arch
     ? [[t('ch_arch_wrote'), archThreads().filter(wait)], [t('ch_arch_no'), archThreads().filter((x) => !wait(x) && x.state !== 'waiting_them')], [t('ch_arch_quiet'), archThreads().filter((x) => !wait(x) && x.state === 'waiting_them')]]
     : [[t('ch_wait'), homeThreads().filter(wait)], [t('ch_home'), homeThreads().filter((x) => !wait(x))]];
   const nArch = arch ? 0 : archThreads().length, nNew = nArch ? archNew() : 0;
@@ -169,7 +169,7 @@ export function ChatDetail({ cid }) {
       await api('/app/api/draft', { draft_id: draft.id, action, text: action === 'send' && editing ? text : undefined });
       action === 'send' ? hap.ok() : hap.sel();
       toast(t(action === 'send' ? 'approved_toast' : 'skipped_toast'));
-      d.drafts = d.drafts.filter((x) => x.id !== draft.id);
+      D().drafts = D().drafts.filter((x) => x.id !== draft.id);
       emit();
       refresh();
     } catch (e) { toast(e.code === 'already_decided' ? t('approve_done') : t('err_generic')); }

@@ -11,7 +11,7 @@
     "predeploy": "node scripts/copy-art.mjs --no-demo && node scripts/build-web.mjs",
     "deploy": "wrangler deploy",
     "migrate": "wrangler d1 migrations apply hunt --remote",
-    "typecheck": "tsc --noEmit && tsc --noEmit -p web",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p web && node scripts/typecheck-web.mjs && node scripts/web-rows.mjs --check",
     "test:households": "node scripts/test-households.mjs",
     "test:agent-token": "node scripts/test-agent-token.mjs",
     "schema": "node scripts/schema.mjs",

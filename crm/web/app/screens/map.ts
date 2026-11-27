@@ -1,4 +1,3 @@
-// Split from app.js (wave 11): see the section comment below.
 import { cssVar, isDark } from '../core/api.js';
 import { D, districtName, listingById, minutesFor, photosOf, priceText, subRegion, travelKmh, travelMode } from '../core/data.js';
 import { MAPLIBRE, MAP_STYLE, pref } from '../core/env.js';

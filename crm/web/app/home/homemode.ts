@@ -1,10 +1,9 @@
-// Split from app.js (wave 11): see the section comment below.
 import { canAccess } from '../../access.js';
 import { agentOn, agentSub } from '../../agent.js';
 import { AF, afHM, afPlace, afTitle, afWhy } from '../afisha/afisha.js';
 import { EveningHero, eveningOn, ptDay, ptHM, useEvening } from '../afisha/parties.js';
-import { api, cssVar } from '../core/api.js';
-import { D, agentAwayHours, canVoteRole, districtShort, listingById, photoUrl, photosOf, sceneStyle } from '../core/data.js';
+import { api, cssVar, themePref } from '../core/api.js';
+import { D, agentAwayHours, canVoteRole, districtShort, homeMode, listingById, photoUrl, photosOf, sceneStyle } from '../core/data.js';
 import { asDate, dayKey, firstName, fmtDM, fmtDayMonth, km, money, wdShort, whenLabel } from '../core/format.js';
 import { LANG, cap, t } from '../core/i18n.js';
 import { go, sp } from '../core/routing.js';
@@ -15,7 +14,7 @@ import { briefCur, toggleCheck } from '../screens/deal.js';
 import { ListingCard, likedList } from '../screens/listings.js';
 import { loadML, mapStyle, useThemeKey } from '../screens/map.js';
 import { ICONS, Icon, Img } from '../ui/icons.js';
-import { AniStickers, BigWord, FloatPhoto, Nav, StageBar, Sticker, Typed, WaterCard, nightMode } from '../ui/pieces.js';
+import { AniStickers, BigWord, FloatPhoto, Nav, StageBar, Sticker, Typed, WaterCard, localHour } from '../ui/pieces.js';
 import { addDays } from './calendar.js';
 import { GuestDrafts } from './guests.js';
 import { W3Head, dealListing, hm, homeName, inPlace, isLiving, rangeDM } from './helpers.js';
@@ -35,11 +34,7 @@ Object.assign(ICONS, {
 export const HM_IDX = { start: 1, search: 2, viewings: 3, choice: 4, deal: 5, movein: 6, living: 7, extension: 7, next: 8, relet: 9, moveout: 9, closed: 9 };
 export const HM_BEFORE = ['choice', 'deal', 'movein'];
 /** Home mode: the project has a chosen home (path.home_listing_id; before the pipeline lands: a deal). Guests keep their own app. */
-export function homeMode() {
-  const d = D();
-  if (!d?.search || !d.me || d.me.role === 'guest') return false;
-  return d.path ? !!d.path.home_listing_id : !!d.deal;
-}
+export { homeMode } from '../core/data.js';
 export const hmToday = () => dayKey(new Date().toISOString());
 export const hmDays = (day) => (day ? Math.round((Date.parse(String(day).slice(0, 10) + 'T00:00:00Z') - Date.parse(hmToday() + 'T00:00:00Z')) / 864e5) : null);
 export const hmRow = (key) => (D()?.path?.rows ?? []).find((r) => r.key === key) ?? null;
@@ -88,14 +83,12 @@ export function homeDesc(l) {
 }
 /** Home name for home-mode titles (wave 8.1: the short name, see homeName). */
 export const hmName = () => homeName();
-export function HomeNav({ tab }) {
-  // wave 8.1: Дом · Афиша · Деньги · Ещё; the map and the plan live at the top of Ещё (+ quick links on Home)
-  const cur = ['listings', 'map', 'plan', 'archive'].includes(tab) ? 'more' : tab;
-  const items = [['today', 'house'], ['afisha', 'ticket'], ['money', 'wallet'], ['more', 'layout-grid']];
-  return html`<nav class="nav hm-nav" aria-label="Hunt">
-    ${items.map(([k, ic]) => html`<a key=${k} href=${'#' + sp(k)} aria-current=${cur === k ? 'page' : null}
-      onClick=${(e) => { e.preventDefault(); if (cur !== k || tab !== k) { hap.sel(); go(sp(k), true); } }}><${Icon} n=${ic} /><span>${t('hm_nav_' + k)}</span></a>`)}
-  </nav>`;
+/** Evening Home (V4-6): living in the home, 18:00–04:00 local. */
+export function nightMode() {
+  if (themePref() === 'light') return false;
+  if (!homeMode() || homePhase() !== 'living') return false;
+  const h = localHour();
+  return h >= 18 || h < 4;
 }
 /** Home Plan data (bookings + today's top event), shared by the day and the evening Home. */
 export function useEventPlan() {

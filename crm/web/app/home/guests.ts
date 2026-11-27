@@ -1,4 +1,3 @@
-// Split from app.js (wave 11): see the section comment below.
 import { api } from '../core/api.js';
 import { D, canVoteRole, minutesFor, photoUrl, sceneStyle } from '../core/data.js';
 import { inTG } from '../core/env.js';
@@ -102,7 +101,7 @@ export function GuideMember() {
     try {
       const r = await api('/app/api/guide-link', { search_id: d.search.id, action });
       setG({ ...guideCache[d.search.id], url: r.url ?? null });
-      d.guide_ready = !!r.url;
+      D().guide_ready = !!r.url;
       emit();
       if (action === 'regenerate') toast(t('gd_regen_ok'));
       if (action === 'revoke') { hap.ok(); toast(t('gd_revoked')); }
@@ -297,7 +296,7 @@ export function GuestsScreen() {
     setBusy(false);
   }
   async function upd(g, body, msg) {
-    try { const r = await api('/app/api/guest', { search_id: d.search.id, user_id: g.user_id, ...body }); if (r.guests) d.guests = r.guests; hap.ok(); toast(msg); emit(); }
+    try { const r = await api('/app/api/guest', { search_id: d.search.id, user_id: g.user_id, ...body }); if (r.guests) D().guests = r.guests; hap.ok(); toast(msg); emit(); }
     catch { toast(t('err_generic')); }
   }
   const extend = (g) => { const nt = addDays(g.to > today ? g.to : today, 7); upd(g, { to: nt }, t('gi_extended', { d: fmtDMshort(nt) })); };
@@ -332,7 +331,7 @@ export function GuestDraftCard({ x }) {
     setBusy(true);
     try {
       await api('/app/api/draft', { draft_id: x.id, action, ...(action === 'send' && text !== x.text ? { text } : {}) });
-      d.guest_drafts = (d.guest_drafts ?? []).filter((y) => y.id !== x.id);
+      D().guest_drafts = (D().guest_drafts ?? []).filter((y) => y.id !== x.id);
       hap.ok(); toast(t(action === 'send' ? 'gq_sent' : 'gq_skipped')); emit();
     } catch { toast(t('err_generic')); }
     setBusy(false);

@@ -2,12 +2,21 @@
 // taking it all back, the money limit. Imported by app.js; the names below are used only while rendering (a circular import).
 import { html } from 'htm/preact';
 import { useState, useEffect } from 'preact/hooks';
-import { S, D, LANG, api, emit, toast, hap, go, sp, back, refresh, openLink, inTG, Icon, Av, BigWord, Typed, Sticker, Good, BackRound, copyText, photosOf, listingById, memberById,
-  shortLabel, priceText, channelName, channelsOf, channelLink, firstName, contactName, fmtTime, fmtDM, dayKey, skel, msgCard, FloatPhoto, closeSheet, t, pl, authHeaders } from './app.js';
+import { api, refresh, authHeaders } from './app/core/api.js';
+import { D, photosOf, listingById, memberById, shortLabel, priceText } from './app/core/data.js';
+import { inTG } from './app/core/env.js';
+import { channelName, firstName, fmtTime, fmtDM, dayKey } from './app/core/format.js';
+import { LANG, t, pl, L } from './app/core/i18n.js';
+import { go, sp, back, openLink } from './app/core/routing.js';
+import { S, emit, toast, hap, closeSheet } from './app/core/store.js';
+import { copyText, skel, msgCard } from './app/home/helpers.js';
+import { Good } from './app/orders/orders.js';
+import { channelsOf, channelLink, contactName } from './app/screens/chats.js';
+import { Icon, Av } from './app/ui/icons.js';
+import { BigWord, Typed, Sticker, BackRound, FloatPhoto } from './app/ui/pieces.js';
 import { demoOn } from './demo.js';
 
 const pn = (n, forms) => pl(n, ...forms);
-const L = (ru, en) => (LANG === 'en' ? en : ru);
 const AC = { v: null, err: false, at: 0 };
 export const acc = () => AC.v;
 export async function loadAccess() {

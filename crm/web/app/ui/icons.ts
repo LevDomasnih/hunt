@@ -1,4 +1,5 @@
-// Split from app.js (wave 11): see the section comment below.
+// Icons (lucide paths), animal avatars and the small vote / interest chips.
+import type { Member } from '../../types/api.js';
 import { fmtScore, interestOf, interestText, memberById, ratingOf, votesFor } from '../core/data.js';
 import { initial } from '../core/format.js';
 import { LANG, t } from '../core/i18n.js';
@@ -6,7 +7,7 @@ import { html } from 'htm/preact';
 import { useState } from 'preact/hooks';
 
 // ---------------------------------------------------------------- icons (lucide-style)
-export const ICONS = {
+export const ICONS: { [name: string]: string } = {
   'shield-check': '<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/>',
   'user-pen': '<path d="M11.5 15H7a4 4 0 0 0-4 4v2"/><path d="M21.378 16.626a1 1 0 0 0-3.004-3.004l-4.01 4.012a2 2 0 0 0-.506.854l-.837 2.87a.5.5 0 0 0 .62.62l2.87-.837a2 2 0 0 0 .854-.506z"/><circle cx="10" cy="7" r="4"/>',
   'user-check': '<path d="m16 11 2 2 4-4"/><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>',
@@ -191,16 +192,17 @@ Object.assign(ICONS, {
   'refresh-cw': '<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>',
   'sunrise': '<path d="M12 2v8"/><path d="m4.93 10.93 1.41 1.41"/><path d="M2 18h2"/><path d="M20 18h2"/><path d="m19.07 10.93-1.41 1.41"/><path d="M22 22H2"/><path d="m8 6 4-4 4 4"/><path d="M16 18a4 4 0 0 0-8 0"/>',
 });
-export const Icon = ({ n, cls = '' }) => html`<svg class=${'icon ' + cls} viewBox="0 0 24 24" aria-hidden="true" dangerouslySetInnerHTML=${{ __html: ICONS[n] ?? '' }}></svg>`;
-export const DEC_ICON = { want_view: 'eye', thinking: 'help', not_interested: 'x', take: 'check' };
+export const Icon = ({ n, cls = '' }: { n: string; cls?: string }) => html`<svg class=${'icon ' + cls} viewBox="0 0 24 24" aria-hidden="true" dangerouslySetInnerHTML=${{ __html: ICONS[n] ?? '' }}></svg>`;
+export const DEC_ICON: { [decision: string]: string } = { want_view: 'eye', thinking: 'help', not_interested: 'x', take: 'check' };
 
 /** Vinyl-toy avatars (the pack's art/toys, made with skills/hunt-art → /toys/<pack>/<slug>-192|384.webp): from TOY_MIN px up the animal is a
  * glossy toy popping out of its disc; smaller sizes keep the flat SVG, and so does any toy that fails to load. */
 export const TOY_MIN = 32;
 export const TOY_K = 1.32; // toy frame vs disc (app.css .av.toy)
-export const toyBad = new Set<any>();
+export const toyBad = new Set<string>();
 /** free: the whole toy standing on a soft shadow, no disc (Home stickers, who's going, the reveal); rows keep the disc. */
-export function Av({ m, size = 40, badge = null, ring = false, title, flat = false, free = false }) {
+export function Av({ m, size = 40, badge = null, ring = false, title, flat = false, free = false }:
+  { m: Partial<Member> | null | undefined; size?: number; badge?: string | null; ring?: boolean; title?: string; flat?: boolean; free?: boolean }) {
   const a = m?.animal;
   const tkey = a ? `${a.pack}/${a.slug}` : '';
   const [bad, setBad] = useState(false);
@@ -215,21 +217,21 @@ export function Av({ m, size = 40, badge = null, ring = false, title, flat = fal
     ${badge && html`<span class="badge"><${Icon} n=${DEC_ICON[badge]} /></span>`}
   </span>`;
 }
-export function VoteAvs({ lid, size = 30, gap = false }) {
+export function VoteAvs({ lid, size = 30, gap = false }: { lid: string; size?: number; gap?: boolean }) {
   const vs = votesFor(lid);
   if (!vs.length) return null;
   return html`<span class=${'avs' + (gap ? ' gap' : '')}>${vs.map((v) => html`<${Av} key=${v.user_id} m=${memberById(v.user_id)} size=${size} badge=${v.decision} ring />`)}</span>`;
 }
 /** Voters' animals with their decisions + "interest X of MAX" (cards, deck, compare). */
-export function InterestChip({ lid, size = 26, photo = false }) {
+export function InterestChip({ lid, size = 26, photo = false }: { lid: string; size?: number; photo?: boolean }) {
   const it = interestOf(lid);
   if (!it.votes.length) return null;
   return html`<span class=${'ichip' + (photo ? ' on-photo' : '')}>
     <span class="avs">${it.votes.map((v) => html`<${Av} key=${v.user_id} m=${memberById(v.user_id)} size=${size} badge=${v.decision} ring />`)}</span>
     <span class="ix">${interestText(it)}</span></span>`;
 }
-export const ScoreChip = ({ lid }) => {
+export const ScoreChip = ({ lid }: { lid: string }) => {
   const r = ratingOf(lid);
   return r ? html`<span class="schip" title=${t('score_title')}><${Icon} n="star" />${fmtScore(r.score)}</span>` : null;
 };
-export const Img = ({ src, cls, alt = '' }) => (src ? html`<img class=${cls} src=${src} alt=${alt} loading="lazy" decoding="async" />` : html`<span class=${'noimg ' + (cls ?? '')}></span>`);
+export const Img = ({ src, cls, alt = '' }: { src: string | null | undefined; cls?: string; alt?: string }) => (src ? html`<img class=${cls} src=${src} alt=${alt} loading="lazy" decoding="async" />` : html`<span class=${'noimg ' + (cls ?? '')}></span>`);

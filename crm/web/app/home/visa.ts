@@ -1,4 +1,3 @@
-// Split from app.js (wave 11): see the section comment below.
 import { api } from '../core/api.js';
 import { D, memberById, minutesFor } from '../core/data.js';
 import { firstName, fmtDM, km } from '../core/format.js';
@@ -73,7 +72,7 @@ export function VisaSheet() {
   async function save(val) {
     try {
       await api('/app/api/visa', { search_id: d.search.id, until: val || null });
-      d.visas = [...(d.visas ?? []).filter((x) => x.user_id !== d.user.id), ...(val ? [{ user_id: d.user.id, visa_until: val }] : [])];
+      D().visas = [...(D().visas ?? []).filter((x) => x.user_id !== D().user.id), ...(val ? [{ user_id: D().user.id, visa_until: val }] : [])];
       hap.ok(); toast(t('vi_saved')); closeSheet(); emit();
     } catch { toast(t('err_generic')); }
   }

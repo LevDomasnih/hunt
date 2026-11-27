@@ -1,4 +1,3 @@
-// Split from app.js (wave 11): see the section comment below.
 import { api } from '../core/api.js';
 import { D } from '../core/data.js';
 import { firstName, fmtDM } from '../core/format.js';

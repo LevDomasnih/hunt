@@ -1,4 +1,3 @@
-// Split from app.js (wave 11): see the section comment below.
 import { D, canVoteRole } from '../core/data.js';
 import { dfmt, fmtDM, fmtNum, money } from '../core/format.js';
 import { LANG, cap, t } from '../core/i18n.js';

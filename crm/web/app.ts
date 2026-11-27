@@ -1,4 +1,5 @@
 // Hunt Mini App and site: the entry esbuild bundles (scripts/build-web.mjs) with Preact + htm from npm.
+import type { Regions } from './types/api.js';
 import { AccessScreen } from './access.js';
 import { AgentScreen } from './agent.js';
 import { Afisha, EventDetail } from './app/afisha/afisha.js';
@@ -7,7 +8,9 @@ import { applyRegion, applyTheme, linkKey, load, startParam, themePref } from '.
 import { TG, inTG, tg } from './app/core/env.js';
 import { applyLang, t } from './app/core/i18n.js';
 import { back, go, useRoute } from './app/core/routing.js';
-import { S, ToastEl, closeSheet, emit, useStore } from './app/core/store.js';
+import { S, closeSheet, emit, useStore } from './app/core/store.js';
+import { ToastEl } from './app/ui/toast.js';
+import { ORD_SCREENS, TopBar, applyTone, toneFor } from './app/ui/shell.js';
 import { Bikes } from './app/home/bikes.js';
 import { Calendar, HomePlan } from './app/home/calendar.js';
 import { DocDetail, Docs } from './app/home/docs.js';
@@ -39,7 +42,7 @@ import { RecapScreen } from './app/screens/recap.js';
 import { Picker } from './app/screens/searches.js';
 import { Today } from './app/screens/today.js';
 import { Useful } from './app/screens/useful.js';
-import { ORD_SCREENS, Skeletons, TopBar, applyTone, toneFor } from './app/ui/pieces.js';
+import { Skeletons } from './app/ui/pieces.js';
 import { demoOn, demoRegions } from './demo.js';
 import { Desk, Door, deskTone, useWide } from './desk.js';
 import { NewProject } from './newproject.js';
@@ -115,7 +118,7 @@ function App() {
     view = html`<${Reveal} />`;
   } else {
     const a = route.arg;
-    view = {
+    const screens: { [screen: string]: () => unknown } = {
       today: () => (homeMode() ? html`<${HomeToday} />` : isLiving() ? html`<${Home} />` : html`<${Today} />`),
       home: () => html`<${Home} />`,
       check: () => html`<${CheckScreen} id=${a} />`,
@@ -175,7 +178,8 @@ function App() {
       agent: () => html`<${AgentScreen} />`,
       more: () => html`<${MoreScreen} />`,
       archive: () => html`<${Archive} />`,
-    }[route.screen]?.() ?? html`<${Today} />`;
+    };
+    view = screens[route.screen]?.() ?? html`<${Today} />`;
   }
   // wave 8: the screen colour follows the route (TG header too); the top bar sits on every screen but the animal reveal
   const tone0 = view && d && !(d.me && !d.me.reveal_seen && d.me.animal && d.me.role !== 'guest') ? toneFor(route.screen, route.arg) : 'grey';
@@ -194,48 +198,6 @@ if (inTG) tg(() => TG.onEvent('themeChanged', applyTheme));
 matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', () => { if (themePref() === 'auto') applyTheme(); });
 if (!inTG && !/^(ru|uk|be|kk)/i.test(navigator.language ?? '')) applyLang('en'); // until the person's own language is known
 applyTheme();
-(demoOn ? demoRegions() : fetch('/art/regions.json').then((r) => r.json())).then((j) => { S.regions = j; if (S.data?.search) applyRegion(S.data.search.country); emit(); }).catch(() => null);
+(demoOn ? demoRegions() : fetch('/art/regions.json').then((r) => r.json() as Promise<Regions>)).then((j): void => { S.regions = j; if (S.data?.search) applyRegion(S.data.search.country); emit(); }).catch((): null => null);
 render(html`<${App} />`, document.getElementById('root'));
-export * from './app/core/env.js';
-export * from './app/core/i18n.js';
-export * from './app/core/format.js';
-export * from './app/core/store.js';
-export * from './app/core/api.js';
-export * from './app/core/routing.js';
-export * from './app/core/data.js';
-export * from './app/ui/icons.js';
-export * from './app/ui/pieces.js';
-export * from './app/screens/searches.js';
-export * from './app/screens/path.js';
-export * from './app/screens/today.js';
-export * from './app/screens/listings.js';
-export * from './app/screens/plan.js';
-export * from './app/screens/map.js';
-export * from './app/screens/deal.js';
-export * from './app/screens/chats.js';
-export * from './app/home/helpers.js';
-export * from './app/home/money.js';
-export * from './app/home/onsite.js';
-export * from './app/home/house.js';
-export * from './app/home/docs.js';
-export * from './app/home/moveout.js';
-export * from './app/home/people.js';
-export * from './app/home/rooms.js';
-export * from './app/home/power.js';
-export * from './app/home/visa.js';
-export * from './app/places/places.js';
-export * from './app/places/districts.js';
-export * from './app/places/flood.js';
-export * from './app/home/bikes.js';
-export * from './app/home/scan3d.js';
-export * from './app/home/dossier.js';
-export * from './app/home/calendar.js';
-export * from './app/home/surf.js';
-export * from './app/home/guests.js';
-export * from './app/screens/recap.js';
-export * from './app/home/homemode.js';
-export * from './app/afisha/afisha.js';
-export * from './app/afisha/parties.js';
-export * from './app/screens/useful.js';
-export * from './app/orders/orders.js';
 

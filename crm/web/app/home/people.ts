@@ -1,4 +1,4 @@
-// Split from app.js (wave 11): see the section comment below.
+import type { DirEntry } from '../../types/api.js';
 import { api } from '../core/api.js';
 import { D, canVoteRole, districtShort, listingById, memberById } from '../core/data.js';
 import { channelName, dfmt, firstName, fmtDM, shortTitle } from '../core/format.js';
@@ -100,7 +100,7 @@ export const dgName = (k, long = false) => {
   if (DG_BUILTIN.includes(k)) return long && STR[LANG]['dgl_' + k] ? t('dgl_' + k) : t('dg_' + k);
   return (D()?.search?.dir_groups ?? D()?.dir_groups ?? []).find((g) => g.key === k)?.name ?? k;
 };
-export function dirEntries() {
+export function dirEntries(): DirEntry[] {
   const d = D();
   const hc = (d.house_contacts ?? []).map((c) => ({ id: 'hc:' + c.id, grp: 'home', name: c.name, subtitle: hcSub(c), channel: c.channel === 'whatsapp' || c.channel === 'telegram' ? c.channel : c.channel === 'phone' ? 'phone' : null, address: c.address, phone: c.channel === 'whatsapp' || c.channel === 'phone' ? c.address : null, icon: c.role === 'owner' ? 'key-round' : c.role === 'cleaning' ? 'sparkles' : c.role === 'pool' ? 'waves' : 'house', house: true, contact_id: c.contact_id }));
   return [...hc, ...(d.directory ?? [])];
@@ -155,7 +155,7 @@ export function DirAddSheet({ grp }) {
     setBusy(true);
     const body: Bag = { search_id: d.search.id, grp: g, name: name.trim(), subtitle: sub.trim() || null, channel: ch };
     if (ch === 'map') body.map_url = addr.trim() || null; else body.address = addr.trim() || null;
-    try { const r = await api('/app/api/dir-entry', body); (d.directory ??= []).push(r.entry); hap.ok(); toast(t('dr_saved')); closeSheet(); emit(); }
+    try { const r = await api('/app/api/dir-entry', body); (D().directory ??= []).push(r.entry); hap.ok(); toast(t('dr_saved')); closeSheet(); emit(); }
     catch (e) { toast(e.code === 'bad_map_url' ? e.message : t('err_generic')); }
     setBusy(false);
   }
@@ -200,7 +200,7 @@ export function DirEntrySheet({ id }) {
     setBusy(false);
   }
   async function del() {
-    try { await api('/app/api/dir-delete', { id: e.id }); d.directory = (d.directory ?? []).filter((x) => x.id !== e.id); hap.ok(); toast(t('dr_deleted')); closeSheet(); emit(); }
+    try { await api('/app/api/dir-delete', { id: e.id }); D().directory = (D().directory ?? []).filter((x) => x.id !== e.id); hap.ok(); toast(t('dr_deleted')); closeSheet(); emit(); }
     catch { toast(t('err_generic')); }
   }
   const canAct = canVoteRole(d.me.role);

@@ -1,4 +1,3 @@
-// Split from app.js (wave 11): see the section comment below.
 import { api } from '../core/api.js';
 import { D, canVoteRole, districtShort, memberById } from '../core/data.js';
 import { dayKey, fmtDM, money } from '../core/format.js';
@@ -81,7 +80,7 @@ export function BikeSheet({ id }) {
     setBusy(true);
     try {
       const r = await api('/app/api/bike', { search_id: d.search.id, id: b0?.id ?? 'new', ...f, price: parseAmount(f.price), currency: cur, channel: f.address ? (f.address.trim().startsWith('@') ? 'telegram' : 'whatsapp') : null, ...extra });
-      d.bikes = [...(d.bikes ?? []).filter((x) => x.id !== r.bike.id), r.bike];
+      D().bikes = [...(D().bikes ?? []).filter((x) => x.id !== r.bike.id), r.bike];
       hap.ok(); toast(r.warning === 'original_passport' ? t('bk_passport') : t('bk_saved')); closeSheet(); emit();
     } catch { toast(t('err_generic')); }
     setBusy(false);
@@ -90,8 +89,8 @@ export function BikeSheet({ id }) {
     setBusy(true);
     try {
       const r = await api('/app/api/bike-pay', { id: b0.id, amount: parseAmount(amount), until });
-      d.bikes = (d.bikes ?? []).map((x) => (x.id === b0.id ? r.bike : x));
-      if (r.money) d.money = r.money;
+      D().bikes = (D().bikes ?? []).map((x) => (x.id === b0.id ? r.bike : x));
+      if (r.money) D().money = r.money;
       hap.ok(); toast(t('bk_paid_ok')); closeSheet(); emit();
     } catch { toast(t('err_generic')); }
     setBusy(false);

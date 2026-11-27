@@ -1,4 +1,3 @@
-// Split from app.js (wave 11): see the section comment below.
 import { api, refresh } from '../core/api.js';
 import { D, photoUrl, sceneStyle } from '../core/data.js';
 import { dayKey, firstName, fmtDM, money, shortTitle, tzNow, whenLabel } from '../core/format.js';
@@ -179,7 +178,7 @@ export function StageSheet() {
     setBusy(true);
     try {
       const r = await api('/app/api/stage', { search_id: d.search.id, stage });
-      d.path = r.path;
+      D().path = r.path;
       if (r.path) document.documentElement.toggleAttribute('data-closed', !!r.path.closed);
       hap.ok();
       toast(t('pp_set_ok'));

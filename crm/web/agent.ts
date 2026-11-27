@@ -3,10 +3,19 @@
 // names below are used only while rendering (a circular import).
 import { html } from 'htm/preact';
 import { useState, useEffect } from 'preact/hooks';
-import { D, LANG, t, api, emit, toast, hap, go, sp, back, openLink, openSheet, closeSheet, Icon, Av, BigWord, Typed, Sticker, Good, BackRound, copyText, firstName, fmtDM, genRu, isGuest, Nav, homeMode } from './app.js';
+import { api } from './app/core/api.js';
+import { D } from './app/core/data.js';
+import { firstName, fmtDM } from './app/core/format.js';
+import { LANG, t, L } from './app/core/i18n.js';
+import { go, sp, back, openLink } from './app/core/routing.js';
+import { emit, toast, hap, openSheet, closeSheet } from './app/core/store.js';
+import { copyText, genRu, isGuest } from './app/home/helpers.js';
+import { homeMode } from './app/home/homemode.js';
+import { Good } from './app/orders/orders.js';
+import { Icon, Av } from './app/ui/icons.js';
+import { BigWord, Typed, Sticker, BackRound, Nav } from './app/ui/pieces.js';
 import { demoOn } from './demo.js';
 
-const L = (ru, en) => (LANG === 'en' ? en : ru);
 const REPO = 'LevDomasnih/hunt'; // the public marketplace of the plugin (README)
 const UV = 'https://docs.astral.sh/uv/';
 /** A token issued on this page lives here only while the page is open: the server keeps its sha256 and cannot show it again. */

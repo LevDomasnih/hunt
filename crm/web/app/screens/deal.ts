@@ -1,4 +1,3 @@
-// Split from app.js (wave 11): see the section comment below.
 import { api, refresh } from '../core/api.js';
 import { D, districtShort, listingById, photosOf, sceneStyle, shortLabel, travelMode } from '../core/data.js';
 import { inTG } from '../core/env.js';
