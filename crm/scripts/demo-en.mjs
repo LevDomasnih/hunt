@@ -19,7 +19,9 @@ export function toEnglish(x) {
   const go = (v, k, parent) => {
     if (typeof v === 'string') { const o = tr(v); if (/[А-Яа-яЁё]/.test(o) && !(k === 'ru' || /^su_/.test(k ?? '') || /^name_ru$/.test(k ?? '') || /_ru$/.test(k ?? ''))) left.add(`${k}: ${o.slice(0, 60)}`); return o; }
     if (Array.isArray(v)) return v.map((y) => go(y, k, v));
-    if (v && typeof v === 'object') return Object.fromEntries(Object.entries(v).map(([a, b]) => [a, go(b, a, v)]));
+    // the Russian half of a {ru, en} pair with an English text stays Russian: the English screen reads `en`, and word swaps would only
+    // mangle `ru`; without `en` the screen falls back to `ru`, so that one is translated
+    if (v && typeof v === 'object') return Object.fromEntries(Object.entries(v).map(([a, b]) => [a, a === 'ru' && v.en ? b : go(b, a, v)]));
     return v;
   };
   return { data: go(x), left: [...left] };
