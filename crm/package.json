@@ -14,7 +14,9 @@
     "typecheck": "tsc --noEmit && tsc --noEmit -p web",
     "test:households": "node scripts/test-households.mjs",
     "test:agent-token": "node scripts/test-agent-token.mjs",
-    "schema": "node scripts/schema.mjs"
+    "schema": "node scripts/schema.mjs",
+    "build:node": "node scripts/build-node.mjs",
+    "start:node": "node --disable-warning=ExperimentalWarning dist/server.mjs"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20261119.1",

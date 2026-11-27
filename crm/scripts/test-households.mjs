@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Two hunters on one Hunt never see or change each other's things; /delete removes a person completely.
-// Starts its own `wrangler dev` on a throwaway local database; nothing leaves the machine.   node scripts/test-households.mjs
+// Starts its own local server (wrangler dev, or the Node build with HUNT_TEST_SERVER=node) on a throwaway database; nothing leaves the machine.   node scripts/test-households.mjs
 import { execFileSync, spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
@@ -8,41 +8,26 @@ import { DatabaseSync } from 'node:sqlite';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { localServer } from './local-server.mjs';
 
 const crm = join(dirname(fileURLToPath(import.meta.url)), '..');
-const dir = mkdtempSync(join(tmpdir(), 'hunt-hh-'));
-const PORT = 8796, BASE = `http://127.0.0.1:${PORT}`;
-const cfg = join(dir, 'wrangler.toml');
-// The real config with the names replaced and absolute paths, so FILL_ME values never matter.
-writeFileSync(cfg, readFileSync(join(crm, 'wrangler.toml'), 'utf8').replace(/database_name = "[^"]*"/, 'database_name = "hunt-test"').replace(/database_id = "[^"]*"/, 'database_id = "local"').replace(/^id = "[^"]*"/m, 'id = "local"')
-  .replace('main = "src/index.ts"', `main = "${crm}/src/index.ts"`).replace('migrations_dir = "migrations"', `migrations_dir = "${crm}/migrations"`).replace('directory = "./public"', `directory = "${crm}/public"`));
-const CFG = ['--config', cfg, '--persist-to', join(dir, 'db')];
-const wr = (a) => execFileSync('npx', ['--no-install', 'wrangler', ...a], { cwd: crm, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
-// The local database and KV are read straight from wrangler's sqlite files: a second wrangler on the same files while
-// `wrangler dev` runs made the worker stop answering on CI machines.
-const sqliteOf = (kind) => { const d = join(dir, 'db', 'v3', kind); const f = readdirSync(d).find((x) => /^[0-9a-f]{64}\.sqlite$/.test(x)); if (!f) throw new Error(`no ${kind} sqlite yet`); const db = new DatabaseSync(join(d, f)); db.exec('PRAGMA busy_timeout = 5000'); return db; };
-const withDb = (kind, fn) => { const db = sqliteOf(kind); try { return fn(db); } finally { db.close(); } };
-const exec = (q) => withDb('d1/miniflare-D1DatabaseObject', (db) => db.exec(q));
-const rows = (q) => withDb('d1/miniflare-D1DatabaseObject', (db) => db.prepare(q).all().map((r) => ({ ...r })));
-const kvKeys = () => withDb('kv/miniflare-KVNamespaceObject', (db) => db.prepare('SELECT key FROM _mf_entries').all().map((r) => r.key));
+const srv = await localServer({ name: 'hh', port: 8796, inspector: 9796, vars: { SETUP_KEY: 'setup', LINK_SECRET: 'link-secret' } });
+const { BASE, exec, rows, kvKeys, dir } = srv;
+const log = { slice: (...a) => srv.log().slice(...a) };
 let pass = 0, fail = 0;
 const ok = (c, name, x = '') => { if (c) pass++; else { fail++; console.log(`FAIL ${name} ${JSON.stringify(x)?.slice(0, 400)}`); } };
 const sleep = (ms) => new Promise((f) => setTimeout(f, ms));
 async function until(fn, ms) { const t = Date.now(); for (;;) { const v = await fn(); if (v) return v; if (Date.now() - t > ms) return null; await sleep(250); } }
 const H = (t) => createHash('sha256').update(t).digest('hex'), T0 = '2026-01-01T00:00:00Z';
 
-writeFileSync(join(dir, 'vars'), `TG_BOT_TOKEN=000:fake\nTG_WEBHOOK_SECRET=hook\nSETUP_KEY=setup\nLINK_SECRET=link-secret\nPUBLIC_URL=${BASE}\nBOT_USERNAME=test_bot\n`);
-wr(['d1', 'migrations', 'apply', 'hunt-test', '--local', ...CFG]);
 exec([['ann', 201, 0], ['bob', 202, 0], ['adm', 203, 1]].flatMap(([n, tg, a]) => [
   `INSERT INTO users (id, tg_user_id, display_name, lang, created_at) VALUES ('u_${n}', ${tg}, '${n}', 'ru', '${T0}')`,
   `INSERT INTO hunters (user_id, is_admin, created_at) VALUES ('u_${n}', ${a}, '${T0}')`,
   `INSERT INTO tokens (hash, user_id, label, created_at) VALUES ('${H(`tok-${n}`)}', 'u_${n}', 't', '${T0}')`]).join(';'));
-const dev = spawn('npx', ['--no-install', 'wrangler', 'dev', ...CFG, '--port', String(PORT), '--ip', '127.0.0.1', '--env-file', join(dir, 'vars'), '--show-interactive-dev-session=false'], { cwd: crm, stdio: ['ignore', 'pipe', 'pipe'], detached: true });
-let log = ''; dev.stdout.on('data', (d) => (log += d)); dev.stderr.on('data', (d) => (log += d));
-const stop = () => { try { process.kill(-dev.pid); } catch { /* gone */ } };
+const stop = () => srv.stop();
 process.on('SIGINT', () => { stop(); process.exit(1); });
 try {
-  if (!(await until(() => fetch(`${BASE}/health`).then((r) => r.ok, () => false), 60000))) throw new Error(`wrangler dev did not start\n${log.slice(-1500)}`);
+  await srv.start();
   const api = async (who, method, path, body) => {
     const r = await fetch(BASE + path, { method, headers: { authorization: `Bearer tok-${who}`, 'content-type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
     return { status: r.status, j: await r.json().catch(() => null) };
@@ -150,6 +135,6 @@ try {
   ok((await api('ann', 'GET', '/api/me')).status === 401, 'the token is dead');
   ok(before === 2 && rows('SELECT COUNT(*) n FROM listings')[0].n === 1 && (await api('bob', 'GET', '/api/listings/krisha-1')).status === 200 && (await api('bob', 'GET', `/api/contacts/${CB}`)).status === 200, "Bob's things are untouched");
   ok((await app(kb, '/app/api/state')).status === 200, "Bob's Mini App opens");
-} catch (e) { fail++; console.log('ERROR', e.stack?.slice(0, 600), log.slice(-1200)); } finally { stop(); await sleep(500); rmSync(dir, { recursive: true, force: true }); }
+} catch (e) { fail++; console.log('ERROR', e.stack?.slice(0, 600), log.slice(-1200)); } finally { await srv.cleanup(); }
 console.log(`households: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

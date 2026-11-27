@@ -1,0 +1,8 @@
+node_modules
+dist
+data
+.wrangler
+.dev.vars*
+*.env
+wrangler.ours.toml
+public/demo

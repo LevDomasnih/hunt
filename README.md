@@ -80,7 +80,7 @@ The app finds `hunt-data` next to `hunt` by itself; `HUNT_REGIONS=<path>/regions
 
 **In Codex** instead of Claude Code: `codex plugin marketplace add LevDomasnih/hunt`, then `codex plugin add hunt@hunt` (or `/plugins` in the TUI). Commands become skills: `$hunt:new Tbilisi`. More in [CODEX.md](plugins/hunt/docs/CODEX.md).
 
-**Your own server.** About ten minutes on Cloudflare's free tier: [crm/README.md](crm/README.md).
+**Your own server.** About ten minutes on Cloudflare's free tier, or Docker on any machine (SQLite inside, no Cloudflare): [crm/README.md](crm/README.md).
 
 ## Commands
 

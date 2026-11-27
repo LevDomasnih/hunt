@@ -50,6 +50,11 @@ jobs:
       - name: core/schema.sql matches the migrations
         working-directory: hunt/crm
         run: node scripts/schema.mjs --check
+      - name: The Node server (site, agent token on Node + SQLite)
+        working-directory: hunt/crm
+        env:
+          HUNT_TEST_SERVER: node
+        run: node scripts/build-node.mjs && HUNT_TEST_NO_BUILD=1 node scripts/test-web.mjs && HUNT_TEST_NO_BUILD=1 npm run test:agent-token
       - name: Sources registry
         working-directory: hunt
         run: node registry/scripts/test.mjs
@@ -83,6 +88,11 @@ jobs:
         run: npm ci --no-audit --no-fund
       - name: Households (local worker, throwaway database)
         working-directory: hunt/crm
+        run: npm run test:households
+      - name: Households on the Node server (Node + SQLite)
+        working-directory: hunt/crm
+        env:
+          HUNT_TEST_SERVER: node
         run: npm run test:households
 
   plugin:

@@ -1,35 +1,26 @@
 #!/usr/bin/env node
 // The site: sign-in through the bot (number match, one-time link), cookie sessions, the two-language chat.
-// Starts its own `wrangler dev` on a throwaway local database.   node scripts/test-web.mjs
+// Starts its own local server (wrangler dev, or the Node build with HUNT_TEST_SERVER=node) on a throwaway database.   node scripts/test-web.mjs
 import { execFileSync, spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { localServer } from './local-server.mjs';
 
 const crm = join(dirname(fileURLToPath(import.meta.url)), '..');
-const dir = mkdtempSync(join(tmpdir(), 'hunt-web-'));
-const PORT = 8798, BASE = `http://127.0.0.1:${PORT}`;
-const cfg = join(dir, 'wrangler.toml');
-writeFileSync(cfg, readFileSync(join(crm, 'wrangler.toml'), 'utf8').replace(/database_name = "[^"]*"/, 'database_name = "t"').replace(/database_id = "[^"]*"/, 'database_id = "local"').replace(/^id = "[^"]*"/m, 'id = "local"')
-  .replace('main = "src/index.ts"', `main = "${crm}/src/index.ts"`).replace('migrations_dir = "migrations"', `migrations_dir = "${crm}/migrations"`).replace('directory = "./public"', `directory = "${crm}/public"`));
-const CFG = ['--config', cfg, '--persist-to', join(dir, 'db')];
-const wr = (a) => execFileSync('npx', ['--no-install', 'wrangler', ...a], { cwd: crm, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
-const exec = (q) => wr(['d1', 'execute', 't', '--local', ...CFG, '--command', q]);
-const rows = (q) => JSON.parse(wr(['d1', 'execute', 't', '--local', '--json', ...CFG, '--command', q])).at(-1).results;
+const srv = await localServer({ name: 'web', port: 8798, inspector: 9798 });
+const { BASE, exec, rows, kvKeys, dir } = srv;
+const log = { slice: (...a) => srv.log().slice(...a) };
 let pass = 0, fail = 0;
 const ok = (c, name, x = '') => { if (c) pass++; else { fail++; console.log(`FAIL ${name} ${JSON.stringify(x)?.slice(0, 300)}`); } };
 const sleep = (ms) => new Promise((f) => setTimeout(f, ms));
 const H = (t) => createHash('sha256').update(t).digest('hex'), T0 = '2026-01-01T00:00:00Z';
-writeFileSync(join(dir, 'vars'), `TG_BOT_TOKEN=000:fake\nTG_WEBHOOK_SECRET=hook\nSETUP_KEY=s\nLINK_SECRET=l\nPUBLIC_URL=${BASE}\nBOT_USERNAME=test_bot\n`);
-wr(['d1', 'migrations', 'apply', 't', '--local', ...CFG]);
 exec([['ann', 201], ['bob', 202], ['eve', 203]].flatMap(([n, tg]) => [`INSERT INTO users (id, tg_user_id, display_name, lang, created_at) VALUES ('u_${n}', ${tg}, '${n}', 'ru', '${T0}')`, `INSERT INTO hunters (user_id, is_admin, created_at) VALUES ('u_${n}', 0, '${T0}')`, `INSERT INTO tokens (hash, user_id, label, created_at) VALUES ('${H(`tok-${n}`)}', 'u_${n}', 't', '${T0}')`]).join(';'));
-const dev = spawn('npx', ['--no-install', 'wrangler', 'dev', ...CFG, '--port', String(PORT), '--ip', '127.0.0.1', '--inspector-port', '9798', '--env-file', join(dir, 'vars'), '--show-interactive-dev-session=false'], { cwd: crm, stdio: ['ignore', 'pipe', 'pipe'], detached: true });
-let log = ''; dev.stdout.on('data', (d) => (log += d)); dev.stderr.on('data', (d) => (log += d));
-const stop = () => { try { process.kill(-dev.pid); } catch { /* gone */ } };
+const stop = () => srv.stop();
 try {
-  for (let i = 0; ; i++) { if (await fetch(`${BASE}/health`).then((r) => r.ok, () => false)) break; if (i > 200) throw new Error('wrangler dev did not start'); await sleep(300); }
+  await srv.start();
   const post = async (path, b, h = {}) => { const r = await fetch(BASE + path, { method: 'POST', headers: { 'content-type': 'application/json', origin: BASE, 'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X) Chrome/140 Safari/537', ...h }, body: JSON.stringify(b ?? {}) }); return { status: r.status, j: await r.json().catch(() => null), cookie: r.headers.get('set-cookie') }; };
   const get = async (path, cookie) => { const r = await fetch(BASE + path, { headers: cookie ? { cookie } : {} }); return { status: r.status, j: await r.json().catch(() => null) }; };
   const hook = (u) => fetch(`${BASE}/tg/webhook`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-telegram-bot-api-secret-token': 'hook' }, body: JSON.stringify(u) });
@@ -121,6 +112,6 @@ try {
 
   await say(201, '/logout');
   ok((await get('/app/api/state', C)).status === 401, '/logout ends the sessions');
-} catch (e) { fail++; console.log('ERROR', e.stack?.slice(0, 600), log.slice(-1200)); } finally { stop(); await sleep(800); rmSync(dir, { recursive: true, force: true }); }
+} catch (e) { fail++; console.log('ERROR', e.stack?.slice(0, 600), log.slice(-1200)); } finally { await srv.cleanup(); }
 console.log(`web: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

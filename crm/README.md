@@ -39,6 +39,31 @@ You need a Cloudflare account (free) and Node 22.5+.
    ```
    It registers the webhook, the commands and the menu button, and returns `admin_invite`. Open that link in Telegram → the bot sends your agent token.
 
+## Your own server without Cloudflare
+
+The same server runs on any machine with Node 22.5+ or Docker: SQLite in one file instead of D1 and KV, `public/` served from disk, the 15-minute cron inside the process, migrations applied at start (`node/server.mjs`). Cloudflare stays the other way to run it; nothing in `src/` changes.
+
+```bash
+git clone https://github.com/LevDomasnih/hunt-data ../../hunt-data
+node scripts/copy-art.mjs --no-demo
+docker build -t hunt .
+docker run -d --name hunt --restart unless-stopped -p 8787:8787 -v hunt-db:/app/data --env-file hunt.env hunt
+```
+
+Without Docker: `npm ci && node scripts/copy-art.mjs --no-demo && npm run build:web && npm run build:node && npm run start:node`.
+
+`hunt.env` holds the same values as the Worker's secrets and vars: `TG_BOT_TOKEN`, `TG_WEBHOOK_SECRET`, `SETUP_KEY`, `LINK_SECRET`, `PUBLIC_URL`, `BOT_USERNAME`, optional `CHAT_KEK`, `SOURCES_URL` / `SOURCES_KEY`, `OPEN_SIGNUP`. The server's own settings:
+
+| Variable | Default | |
+|---|---|---|
+| `PORT` | `8787` | |
+| `HUNT_DB` | `data/hunt.db` (`/app/data/hunt.db` in Docker) | the whole database, photos included: back this file up |
+| `TRUST_PROXY` | off | `1` behind nginx, Caddy or a tunnel: the client address comes from `X-Forwarded-For` (rate limits are per address) |
+| `NO_FREE_TIER_LIMITS` | `1` | `0` keeps Cloudflare's free-tier caps (1,000 photo writes a day, a small budget per cron tick) |
+| `HUNT_CRON` | on | `0` turns the in-process cron off (when something else calls it) |
+
+Telegram needs HTTPS: put the server behind a reverse proxy with a certificate (Caddy does it by itself) and set `PUBLIC_URL` to that address, then call `/setup` as in step 6. The integration tests run against this server too: `HUNT_TEST_SERVER=node npm run test:households`.
+
 ## Inviting people
 
 - `/invite` in the bot (admins): a one-time link that makes someone a **hunter** (they get their own agent token and run their own searches with your bot).
