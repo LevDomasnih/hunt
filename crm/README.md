@@ -28,10 +28,9 @@ You need a Cloudflare account (free) and Node 20+.
    npx wrangler secret put LINK_SECRET         # any long random string
    npx wrangler secret put CHAT_KEK            # optional: openssl rand -base64 32, encrypts conversations at rest
    ```
-5. **Migrate and deploy.** The countries live in the data repository [hunt-data](https://github.com/LevDomasnih/hunt-data); `predeploy` copies them into the app (in a full checkout with the packs inside `plugins/hunt/regions` you can leave `HUNT_REGIONS` out).
+5. **Migrate and deploy.** The countries live in the data repository [hunt-data](https://github.com/LevDomasnih/hunt-data); clone it next to `hunt`, and `predeploy` copies them into the app and builds the Mini App (`HUNT_REGIONS=<path>/regions` if it lives elsewhere).
    ```bash
    git clone https://github.com/LevDomasnih/hunt-data ../../hunt-data
-   export HUNT_REGIONS=$PWD/../../hunt-data/regions
    npm run migrate && npm run deploy
    ```
 6. **Set up the bot and get your admin invite.**

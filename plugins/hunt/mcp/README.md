@@ -38,7 +38,7 @@ Both work with `mcp` 1.x (`FastMCP`) and 2.x (`MCPServer`).
 | Telegram API id/hash | OS keychain: service `hunt-telegram`, username = account label (fallback `default`) |
 | Telegram sessions | `~/.config/hunt/telegram/<label>.session` (mode 600, directory 700) |
 | Telegram pacing state | `~/.config/hunt/telegram/state.json` (last send, new chats in 24 h, cooldowns) |
-| Region packs | `$HUNT_REGIONS`, else `<plugin root>/regions`, else `<repo root>/regions` |
+| Region packs | `$HUNT_REGIONS`, else the data repository installed by `packs_update`, else a `hunt-data` checkout next to the hunt repository, else `<plugin root>/regions` (only `_generic` ships there) |
 
 Environment overrides: `HUNT_CONFIG_DIR` (config folder), `HUNT_API_URL` + `HUNT_TOKEN` (headless
 machines without a keychain; the token is then read from the environment), `HUNT_REGIONS`,

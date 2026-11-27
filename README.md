@@ -65,8 +65,10 @@ The same app is a Telegram Mini App on the phone:
 
 ```bash
 git clone https://github.com/LevDomasnih/hunt && git clone https://github.com/LevDomasnih/hunt-data
-cd hunt/crm && npm ci && HUNT_REGIONS=../../hunt-data/regions npm run dev
+cd hunt/crm && npm ci && npm run dev
 ```
+
+The app finds `hunt-data` next to `hunt` by itself; `HUNT_REGIONS=<path>/regions` points elsewhere.
 
 **A friend has a server.** Open their invite link, press Start in the bot, then in Claude Code ([uv](https://docs.astral.sh/uv/) is needed):
 
@@ -111,7 +113,7 @@ Ready now:
 | Turkey | Istanbul, Antalya |
 | Serbia | Belgrade, Novi Sad |
 
-Big cities get a toy map made from OpenStreetMap: blocks cut by the real streets and raised by their buildings, parks with toy trees, rivers, a few landmarks, yellow signs for the areas and soft light walls between them. Belgrade and Bangkok have it now, the other cities are next.
+Big cities get a toy map made from OpenStreetMap: blocks cut by the real streets and raised by their buildings, parks with toy trees, rivers, a few landmarks, yellow signs for the areas and soft light walls between them. Every city above has one.
 
 The skill `hunt-art` teaches any agent to draw a new place in this style: flat shapes become glossy toys, a script checks the colours and the shapes; `citymap.py` builds the city.
 
@@ -144,12 +146,12 @@ Rental, immigration and brokerage rules differ by country. In Indonesia acting f
 | Path | What |
 |---|---|
 | `plugins/hunt/` | the Claude Code plugin: skills, commands, MCP servers, channels |
-| `crm/` | Cloudflare Worker: API, Telegram bot, Mini App, site |
+| `crm/` | Cloudflare Worker: API, Telegram bot, site; the Mini App is TypeScript in `crm/web/` (Preact + htm), built by esbuild |
 | `core/` | schema, API reference, questionnaire, pack format |
 | `registry/` | the sources registry and the proposals (`scripts/proposals.py` puts approved ones into hunt-data) |
 | `DESIGN.md` | the design system |
 
-Adding a channel, a country or a screen: start with [BRIDGE.md](plugins/hunt/channels/BRIDGE.md), [PACK_FORMAT.md](core/PACK_FORMAT.md) or [DESIGN.md](DESIGN.md). Checks: `uv run` the plugin tests (`plugins/hunt/mcp/README.md`), `npm run test:households` (with `HUNT_REGIONS=<hunt-data>/regions`, it needs the countries) and `node scripts/test-web.mjs` in `crm/`, `node registry/scripts/test.mjs`.
+Adding a channel, a country or a screen: start with [BRIDGE.md](plugins/hunt/channels/BRIDGE.md), [PACK_FORMAT.md](core/PACK_FORMAT.md) or [DESIGN.md](DESIGN.md). Checks: `npm run typecheck`, `node scripts/test-web.mjs` and `npm run test:households` in `crm/` (the last two need `hunt-data` next to `hunt`), `uv run` the plugin tests (`plugins/hunt/mcp/README.md`), `node registry/scripts/test.mjs`, `node scripts/codex-skills.mjs --check`. CI runs all of them on every push.
 
 ## Licence
 
